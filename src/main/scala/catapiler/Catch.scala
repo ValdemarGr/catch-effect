@@ -9,41 +9,50 @@ import cats.data.EitherT
 import cats.data.Kleisli
 
 trait Raise[F[_], E] { self =>
+  def monad: Monad[F]
+
   def raise[A](e: E)(implicit sp: SourcePos): F[A]
 
   def raiseIf[A](e: => E)(
       cond: Boolean
-  )(implicit sp: SourcePos, F: Applicative[F]): F[Unit] =
-    if (cond) raise(e).void else F.unit
+  )(implicit sp: SourcePos): F[Unit] =
+    if (cond) monad.void(raise(e)) else monad.unit
 
   def fromOptionF[A](e: => E)(
       oa: F[Option[A]]
-  )(implicit sp: SourcePos, F: Monad[F]): F[A] =
-    oa.flatMap(_.fold(raise[A](e))(F.pure))
+  )(implicit sp: SourcePos): F[A] =
+    monad.flatMap(oa)(_.fold(raise[A](e))(monad.pure))
 
   def fromOption[A](e: => E)(
       oa: Option[A]
-  )(implicit sp: SourcePos, F: Applicative[F]): F[A] =
-    oa.fold(raise[A](e))(F.pure)
+  )(implicit sp: SourcePos): F[A] =
+    oa.fold(raise[A](e))(monad.pure)
 
   def contramap[E2](f: E2 => E): Raise[F, E2] = new Raise[F, E2] {
+    def monad = self.monad
     override def raise[A](e: E2)(implicit sp: SourcePos): F[A] =
       self.raise(f(e))
   }
 }
 
-trait Handle[F[_], E] extends Raise[F, E] { self =>
+trait Handle[F[_], E] extends Raise[F, E] {
   def handleWith[A](fa: F[A])(f: E => F[A])(implicit sp: SourcePos): F[A]
 
   def attempt[A](
       fa: F[A]
-  )(implicit sp: SourcePos, F: Applicative[F]): F[Either[E, A]] =
-    handleWith(fa.map(Right(_): Either[E, A]))(e => F.pure(Left(e)))
+  )(implicit sp: SourcePos): F[Either[E, A]] =
+    handleWith(monad.map(fa)(Right(_): Either[E, A]))(e => monad.pure(Left(e)))
+
+  def attemptK(implicit sp: SourcePos): F ~> EitherT[F, E, *] =
+    new (F ~> EitherT[F, E, *]) {
+      def apply[A](fa: F[A]): EitherT[F, E, A] = EitherT(attempt(fa))
+    }
 }
 
 object Handle {
   implicit def forEitherT[F[_]: Monad, E]: Handle[EitherT[F, E, *], E] =
     new Handle[EitherT[F, E, *], E] {
+      def monad = implicitly
       override def raise[A](e: E)(implicit sp: SourcePos): EitherT[F, E, A] =
         EitherT.leftT(e)
 
@@ -54,11 +63,68 @@ object Handle {
     }
 }
 
+/** An abstraction that can construct an instance of the [[Handle]] mtl algebra without any constraints.
+  *
+  * [[Catch]] provides the (cap)ability to introduce ad-hoc error channels which compose, like [[cats.data.EitherT]], but with no required
+  * lifting (and un-lifting).
+  *
+  * [[Catch]], unlike mtl stacks, [[Catch]] does not require introuction of more monad transformers when layering.
+  *
+  * Nested handlers for [[Catch]] are well-defined.
+  */
 trait Catch[F[_]] { self =>
-  val F: Monad[F]
+  def monad: Monad[F]
 
+  /** A low-level method for requesting a new [[Handle]] instance and allocating a new error channel for any error type.
+    *
+    * This api is low-level and potentially unsafe. Any effect `F` that uses invokes `raise` but is not enclosed in a `handleWith` will lead
+    * to a runtime error.
+    *
+    * If possible, prefer the safer variant [[use]] instead.
+    */
   def allocated[E](implicit sp: SourcePos): F[Handle[F, E]]
 
+  /** Within the scope of `f`, the use of [[Handle]] is well defined.
+    *
+    * The [[use]] method should be treated like a [[cats.effect.Resource]]'s use.
+    *
+    * Consider the following example usage:
+    * {{{
+    *   sealed trait AddUsersError
+    *   object AddUsersError {
+    *     case object NoUsers extends AddUsersError
+    *     case class DuplicateUsers extends AddUsersError
+    *   }
+    *   def addUsers[F[_]](users: List[User])(implicit
+    *     R: Raise[F, AddUsersError],
+    *     userRepo: UserRepository[F]
+    *   ): F[Unit] = {
+    *     import AddUsersError._
+    *     for {
+    *       _ <- R.raiseIf(NoUsers)(users.isEmpty)
+    *       userIds = users.map(_.id).toSet
+    *       // A stream
+    *       _ <- userRepo.getUsers(users.map(_.id))
+    *         .evalMap(user => R.raiseIf(DuplicateUsers)(userIds.contains(user.id)))
+    *         .compile.drain
+    *       _ <- R.raiseIf(DuplicateUsers)(userIds.size != users.size)
+    *       _ <- userRepo.add(users)
+    *     } yield ()
+    *   }
+    *
+    *   def addUsersRoute[F[_]: Catch](users: List[User])(implicit
+    *     R: Raise[F, AddUsersError],
+    *     userRepo: UserRepository[F]
+    *   ) =
+    *     Catch[F].use[AddUsersError]{ implicit R =>
+    *       addUsers[F](users)
+    *     }.flatMap{
+    *       case Left(AddUsersError.NoUsers) => ???
+    *       case Left(AddUsersError.DuplicateUsers) => ???
+    *       case Right(_) => ???
+    *     }
+    * }}}
+    */
   def use[E] = new Catch.PartiallyAppliedUse[F, E](self)
 }
 
@@ -69,9 +135,7 @@ object Catch {
     def apply[A](
         f: Handle[F, E] => F[A]
     )(implicit sp: SourcePos): F[Either[E, A]] =
-      instance.F.flatMap(instance.allocated[E])(h =>
-        h.attempt(f(h))(sp, instance.F)
-      )
+      instance.monad.flatMap(instance.allocated[E])(h => h.attempt(f(h))(sp))
   }
 
   final case class HandleWithInUncancellable(
@@ -81,7 +145,8 @@ object Catch {
     override def getMessage(): String =
       s"""|"handleWith" was invoked at ${caller},
           |but this operation occured inside of an uncancellable block.
-          |Catch does not known how to produce a value of type `F[A]` if it cannot cancel the fiber.""".stripMargin
+          |Catch does not known how to produce a value of type `F[A]` if it cannot cancel the fiber.
+          |The handler was defined at $alloc""".stripMargin
   }
 
   final case class RaisedWithoutHandler[E](
@@ -91,10 +156,10 @@ object Catch {
   ) extends RuntimeException {
     override def getMessage(): String =
       s"""|I think you might have a resource leak.
-          |You are trying to raise at ${caller}.
-          |But this operation occured outside of the scope of the handler.
+          |You are trying to raise at ${caller},
+          |but this operation occured outside of the scope of the handler.
           |Either widen the scope of your handler or don't leak the algebra.
-          |The handler was started at $alloc""".stripMargin
+          |The handler was defined at $alloc""".stripMargin
   }
 
   final case class RaisedInUncancellable[E](
@@ -105,7 +170,8 @@ object Catch {
     override def getMessage(): String =
       s"""|"raise" was invoked at ${caller},
           |but this operation occured inside of an uncancellable block.
-          |Catch does not known how to produce a value of type `F[A]` if it cannot cancel the fiber.""".stripMargin
+          |Catch does not known how to produce a value of type `F[A]` if it cannot cancel the fiber.
+          |The handler was defined at $alloc""".stripMargin
   }
 
   def ioCatch: IO[Catch[IO]] =
@@ -116,42 +182,41 @@ object Catch {
   def kleisli[F[_]: Concurrent]: Catch[Kleisli[F, Vault, *]] =
     fromLocal[Kleisli[F, Vault, *]]
 
-  def fromLocal[F[_]](implicit F: Concurrent[F], L: Local[F, Vault]) = {
-    implicit val F0 = F
+  /** Implements [[Catch]] via the cancellation of an effect `F`.
+    *
+    * Note that when an instance of [[Catch]] has been constructed like this, invoking any method on [[Handle]] inside an `uncancelable`
+    * block is considered an error.
+    *
+    * Using cancellation to raise errors has some advantages and disadvantages.
+    *
+    * [[Catch]], unlike [[EitherT]], does not have potentially dangerous semantics regarding resource safety (EitherT's left case when
+    * releasing resources). For reference the default implementation of [[cats.effect.MonadCancel]]'s `guarenteeCase` will not invoke the
+    * finalizer when you use [[EitherT]] and the effect is in the `Left` case.
+    */
+  def fromLocal[F[_]](implicit F: Concurrent[F], L: Local[F, Vault]): Catch[F] = {
     new Catch[F] {
-      override val F: Monad[F] = F0
+      override def monad: Monad[F] = F
 
       override def allocated[E](implicit sp0: SourcePos): F[Handle[F, E]] =
         Key.newKey[F, E => F[Unit]].map { key =>
           new Handle[F, E] {
+            def monad = F
+
             override def raise[A](e: E)(implicit sp: SourcePos): F[A] =
               L.ask(sp)
                 .flatMap(_.lookup(key) match {
+                  case None => F.raiseError(RaisedWithoutHandler(e, sp0, sp))
                   case Some(f) =>
-                    f(e) *> F0.canceled *> F0
-                      .raiseError(RaisedInUncancellable(e, sp0, sp))
-                  case None => F0.raiseError(RaisedWithoutHandler(e, sp0, sp))
+                    f(e) *> F.canceled *>
+                      F.raiseError(RaisedInUncancellable(e, sp0, sp))
                 })
 
-            override def handleWith[A](fa: F[A])(f: E => F[A])(implicit
-                sp: SourcePos
-            ): F[A] =
-              F0.deferred[E].flatMap { prom =>
-                val program = L
-                  .local(fa)(_.insert(key, (x: E) => prom.complete(x).void))(sp)
+            override def handleWith[A](fa: F[A])(f: E => F[A])(implicit sp: SourcePos): F[A] =
+              F.deferred[E].flatMap { prom =>
+                val program: F[A] =
+                  L.local(fa)(_.insert(key, (x: E) => prom.complete(x).void))(sp)
 
-                F0.start(program)
-                  .flatMap(_.join.flatMap {
-                    case Outcome.Succeeded(fa) => fa
-                    case Outcome.Errored(e)    => F0.raiseError(e)
-                    case Outcome.Canceled() =>
-                      prom.tryGet.flatMap {
-                        case Some(e) => f(e)
-                        case None =>
-                          F0.canceled *> F0
-                            .raiseError(HandleWithInUncancellable(sp0, sp))
-                      }
-                  })
+                F.race(prom.get, program).flatMap(_.fold(f, F.pure(_)))
               }
           }
         }
@@ -162,22 +227,18 @@ object Catch {
       F: Concurrent[F],
       H: Handle[F, Vault]
   ): Catch[F] = {
-    implicit val F0 = F
     new Catch[F] {
-      override val F: Monad[F] = F0
+      override def monad: Monad[F] = F
 
       override def allocated[E](implicit sp0: SourcePos): F[Handle[F, E]] =
         Key.newKey[F, E].map { k =>
           new Handle[F, E] {
+            def monad: Monad[F] = F
             override def raise[A](e: E)(implicit sp: SourcePos): F[A] =
               H.raise(Vault.empty.insert(k, e))(sp)
 
-            override def handleWith[A](fa: F[A])(f: E => F[A])(implicit
-                sp: SourcePos
-            ): F[A] =
-              H.handleWith(fa)(v => v.lookup(k).fold[F[A]](H.raise(v)(sp))(f))(
-                sp
-              )
+            override def handleWith[A](fa: F[A])(f: E => F[A])(implicit sp: SourcePos): F[A] =
+              H.handleWith(fa)(v => v.lookup(k).fold[F[A]](H.raise(v)(sp))(f))(sp)
           }
         }
     }
@@ -186,6 +247,7 @@ object Catch {
   def eitherT[F[_]: Concurrent]: Catch[EitherT[F, Vault, *]] = {
     type G[A] = EitherT[F, Vault, A]
     implicit val handle = new Handle[G, Vault] {
+      def monad: Monad[G] = implicitly
       override def raise[A](e: Vault)(implicit sp: SourcePos): G[A] =
         EitherT.leftT(e)
 

@@ -7,6 +7,10 @@ import org.tpolecat.sourcepos.SourcePos
 object LocalForIOLocal {
   def localForIOLocal[A](iol: IOLocal[A]): Local[IO, A] =
     new Local[IO, A] {
+
+      override def set[B](fa: IO[B])(c: A)(implicit sp: SourcePos): IO[B] = 
+        iol.get.flatMap(a => iol.set(c) *> fa <* iol.set(a))
+
       override def applicative: Applicative[IO] = implicitly
 
       override def ask(implicit sp: SourcePos): IO[A] = iol.get
