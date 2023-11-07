@@ -21,14 +21,14 @@ trait Local[F[_], C] extends Ask[F, C] {
 
   def setK(c: C)(implicit sp: SourcePos): F ~> F =
     new (F ~> F) {
-        def apply[A](fa: F[A]): F[A] = set(fa)(c)(sp)
+      def apply[A](fa: F[A]): F[A] = set(fa)(c)(sp)
     }
 }
 
 object Local {
   implicit def localForKleisli[F[_]: Monad, C]: Local[Kleisli[F, C, *], C] =
     new Local[Kleisli[F, C, *], C] {
-      override def set[A](fa: Kleisli[F,C,A])(c: C)(implicit sp: SourcePos): Kleisli[F,C,A] = 
+      override def set[A](fa: Kleisli[F, C, A])(c: C)(implicit sp: SourcePos): Kleisli[F, C, A] =
         local[A](fa)(_ => c)
 
       override val applicative: Applicative[Kleisli[F, C, *]] = implicitly
@@ -41,7 +41,6 @@ object Local {
       ): Kleisli[F, C, A] =
         Kleisli.local(f)(fa)
 
-        
     }
 }
 
@@ -51,7 +50,7 @@ object Local {
   *
   * For programs written in [[cats.data.Kleisli]] or tagless final, [[Context]] provides the ability to introduce new [[Local]] instances
   * without having to lift any algebras or penalize your performance.
-  * 
+  *
   * Nested use of [[Context]] is well defined.
   */
 trait Context[F[_]] {
@@ -62,7 +61,8 @@ trait Context[F[_]] {
     * [[allocated]] is more powerful than [[use]] in that you can write a program with [[Local]] without having an initial value yet.
     * Allocated let's the user choose when to provide the initial value in either through `set` or a natural transformation `C => F ~> F`.
     *
-    * If an effect `F` that depends on [[Local]] is not provided with an initial value, through either `set` or `setK`, a detailed runtime error will be raised.
+    * If an effect `F` that depends on [[Local]] is not provided with an initial value, through either `set` or `setK`, a detailed runtime
+    * error will be raised.
     *
     * For instance, here is a good use-case for allocated.
     * {{{
@@ -149,14 +149,12 @@ object Context {
     new Context[F] {
       override def monad: Monad[F] = F
 
-      override def allocated[C](implicit
-          sp0: SourcePos
-      ): F[Local[F, C]] =
+      override def allocated[C](implicit sp0: SourcePos): F[Local[F, C]] =
         Key.newKey[F, C].map { key =>
           new Local[F, C] {
 
-            override def set[A](fa: F[A])(c: C)(implicit sp: SourcePos): F[A] = 
-                L.local(fa)(_.insert(key, c))(sp)
+            override def set[A](fa: F[A])(c: C)(implicit sp: SourcePos): F[A] =
+              L.local(fa)(_.insert(key, c))(sp)
 
             override def applicative: Applicative[F] = F
 

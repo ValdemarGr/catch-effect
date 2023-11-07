@@ -138,17 +138,6 @@ object Catch {
       instance.monad.flatMap(instance.allocated[E])(h => h.attempt(f(h))(sp))
   }
 
-  final case class HandleWithInUncancellable(
-      alloc: SourcePos,
-      caller: SourcePos
-  ) extends RuntimeException {
-    override def getMessage(): String =
-      s"""|"handleWith" was invoked at ${caller},
-          |but this operation occured inside of an uncancellable block.
-          |Catch does not known how to produce a value of type `F[A]` if it cannot cancel the fiber.
-          |The handler was defined at $alloc""".stripMargin
-  }
-
   final case class RaisedWithoutHandler[E](
       e: E,
       alloc: SourcePos,
@@ -223,10 +212,7 @@ object Catch {
     }
   }
 
-  def fromHandle[F[_]](implicit
-      F: Concurrent[F],
-      H: Handle[F, Vault]
-  ): Catch[F] = {
+  def fromHandle[F[_]](implicit F: Concurrent[F], H: Handle[F, Vault]): Catch[F] = {
     new Catch[F] {
       override def monad: Monad[F] = F
 
