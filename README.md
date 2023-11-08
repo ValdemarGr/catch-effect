@@ -70,7 +70,7 @@ def domainFunction[F[_]: Console](implicit F: Async[F], R: Raise[F, DomainError]
     for {
         xs <- F.delay((0 to 10).toList)
         _ <- R.raiseIf(MissingData)(xs.nonEmpty)
-        _ <- Console[F].println("Fireing the missiles!")
+        _ <- Console[F].println("Firing the missiles!")
     } yield ()
 
 def doDomainEffect[F[_]: Catch: Async: Console] = 
