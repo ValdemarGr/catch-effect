@@ -86,3 +86,13 @@ Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and 
 1. Catch can occur an instance of `Handle[F, Vault]` (or `EitherT[F, Vault, A]`)
 2. Catch can occur for an instance of `Local[F, Vault]` (or `Kleisli[F, Vault, A]`) and `Concurrent[F]` via cancellation
 
+An interesting observation is that you can in fact construct `Catch` if you have `Context` and `Concurrent`.
+```scala
+trait MyError
+def example[F[_]: Context: Concurrent] =
+    Context[F].use[Vault]{ implicit L => 
+        Catch.fromLocal[F].use[MyError]{ implicit R => 
+            Concurrent[F].unit
+        }
+    }
+```
