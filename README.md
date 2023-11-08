@@ -5,18 +5,18 @@ A small set of structures are introduced that allow construction of algebras aki
 
 ## Context
 Context can create instances of Local, that represent running an effect given some input.
-The MTL counterpart of Context is Kleisli/ReaderT.
+The MTL counterpart of `Context` is `Kleisli`/`ReaderT`.
 
-If you are using `cats-effect` and you are familiar with IOLocal, then Context is very similar (and can be constructed on top of it).
-However, Context allows spawning new ad-hoc Local instances for any effect type F, and not just IO.
+If you are using `cats-effect` and you are familiar with `IOLocal`, then Context is very similar (and can be constructed on top of it).
+However, `Context` allows spawning new ad-hoc `Local` instances for any effect type `F`, and not just `IO`.
 
-You can construct an instance of Context in various ways, here is one using `cats-effect`.
+You can construct an instance of `Context` in various ways, here is one using `cats-effect`.
 ```scala
 Context.ioContext
 ```
 
 ### Example
-When you have an instance of Context in scope, new Local instances can be spawned.
+When you have an instance of `Context` in scope, new `Local` instances can be spawned.
 ```scala
 type Auth = String
 def authorizedRoute[F[_]: Monad: Console](implicit L: Local[F, Auth]): F[Unit] = 
@@ -39,28 +39,28 @@ def run[F[_]: Monad: Console: Context] =
 ```
 
 ### Other ways of constructing Context
-There are several other ways to construct Context than to use IO.
-If you are working in Kleisli a natural implementation exists.
+There are several other ways to construct `Context` than to use `IO`.
+If you are working in `Kleisli` a natural implementation exists.
 ```scala
 Context.kleisli[IO]
 ```
-Or for any instance of Local[F, Vault].
+Or for any instance of `Local[F, Vault]`.
 ```scala
 implicit lazy val L: Local[IO, Vault] = ???
 Context.local[IO]
 ```
 
 ## Catch
-Catch responsible for throwing and catching errors.
-The MTL counterpart of Catch is EitherT.
-Catch can introduce new ad-hoc error channels that are independent of eachother.
+`Catch` responsible for throwing and catching errors.
+The MTL counterpart of `Catch` is `EitherT`.
+`Catch` can introduce new ad-hoc error channels that are independent of eachother.
 There are various ways to construct a catch, but the simplest (given that you're working in `cats-effect`) is the following.
 ```scala
 Catch.ioCatch
 ```
 
 ### Example
-With an instance of Catch in scope, you can create locally scoped domain-specific errors.
+With an instance of `Catch` in scope, you can create locally scoped domain-specific errors.
 ```scala
 sealed trait DomainError
 case object MissingData extends DomainError
@@ -80,9 +80,9 @@ def doDomainEffect[F[_]: Catch: Async: Console] =
     }
 ```
 
-Nested Catch, Raise and Handle instances are well behaved when nested and can raise errors on their completely isolated error channels.
+Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
 
 ### Other ways of constructing Catch
-1. Catch can occur an instance of Handle[F, Vault] (or EitherT[F, Vault, A])
-2. Catch can occur for an instance of Local[F, Vault] (or Kleisli[F, Vault, A]) and Concurrent[F] via cancellation
+1. Catch can occur an instance of `Handle[F, Vault]` (or `EitherT[F, Vault, A]`)
+2. Catch can occur for an instance of `Local[F, Vault]` (or `Kleisli[F, Vault, A]`) and `Concurrent[F]` via cancellation
 
