@@ -1,4 +1,4 @@
-# Catch effect
+# Catch effect <a href="https://typelevel.org/cats/"><img src="https://typelevel.org/cats/img/cats-badge.svg" height="40px" align="right" alt="Cats friendly" /></a>
 Catch effect is a small library for piling effectful algebras on top of eachother.
 
 A small set of structures are introduced that allow construction of algebras akin to MTL, but without monad transformers and lifting effects.
