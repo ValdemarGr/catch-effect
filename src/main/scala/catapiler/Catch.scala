@@ -1,4 +1,4 @@
-package catapiler
+package catcheffect
 
 import cats.effect._
 import cats._
