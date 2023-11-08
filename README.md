@@ -6,7 +6,7 @@ A small set of structures are introduced that allow construction of algebras aki
 Catch effect is built on top of [Vault](https://github.com/typelevel/vault), which is a map that can hold values of different types.
 
 ## Context
-Context can create instances of Local, that represent running an effect given some input.
+Context can create instances of `Local`, that represent running an effect given some input.
 The MTL counterpart of `Context` is `Kleisli`/`ReaderT`.
 
 If you are using `cats-effect` and you are familiar with `IOLocal`, then Context is very similar (and can be constructed on top of it).
