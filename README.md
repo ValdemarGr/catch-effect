@@ -34,10 +34,8 @@ def authorizedRoute[F[_]: Console: Sync](implicit L: Local[F, Auth]): F[Unit] =
         _ <- Console[F].println(s"doing user op with $user again")
     } yield ()
 
-def run[F[_]: Sync: Context: Console] = 
-    Context[F].use("user"){ implicit L =>
-        authorizedRoute[F]
-    }
+def run[F[_]: Sync: Context: Console]: F[Unit] = 
+    Context[F].use("user")(implicit L => authorizedRoute[F])
 ```
 Running the program yields:
 ```scala
@@ -80,13 +78,13 @@ def domainFunction[F[_]: Console](implicit F: Async[F], R: Raise[F, DomainError]
         _ <- Console[F].println("Firing the missiles!")
     } yield ()
 
-def doDomainEffect[F[_]: Catch: Async: Console] = 
-    Catch[F].use[DomainError]{ implicit R =>
-        domainFunction[F]
-    }.flatMap{
-        case Left(MissingData) => Console[F].println("Missing data!")
-        case Right(()) => Console[F].println("Success!")
-    }
+def doDomainEffect[F[_]: Catch: Async: Console]: F[Unit] = 
+    Catch[F]
+        .use[DomainError](implicit R => domainFunction[F])
+        .flatMap{
+            case Left(MissingData) => Console[F].println("Missing data!")
+            case Right(()) => Console[F].println("Success!")
+        }
 ```
 Running this program yields:
 ```scala
