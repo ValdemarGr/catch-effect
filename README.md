@@ -90,7 +90,6 @@ Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO])
 // Missing data!
 ```
 
-
 Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
 
 ### Other ways of constructing Catch
@@ -107,4 +106,68 @@ def example[F[_]: Context: Concurrent] =
       Concurrent[F].unit
     }
   }
+```
+
+## Unsafe use of algebras
+Like any resources, the structures defined in this library are only well-behaved within a scope.
+Use outside of their scope is considered an error and will be detected (like a resource leak).
+
+Consider the following examples that lead to errors.
+```scala
+def catchError(ctch: Catch[IO]) =
+  ctch.use[String](x => IO(x)).flatMap{ e => 
+    e.traverse(_.raise("Oh no!"))
+  }
+
+def contextError(ctx: Context[IO]) = 
+  ctx.use("initial")(x => IO(x)).flatMap{ L => 
+    L.ask
+  }
+```
+Running the Catch example:
+```scala
+Catch.ioCatch.flatMap(catchError)
+// catcheffect.Catch$RaisedWithoutHandler: I think you might have a resource leak.
+// You are trying to raise at README.md:163,
+// but this operation occured outside of the scope of the handler.
+// Either widen the scope of your handler or don't leak the algebra.
+// The handler was defined at README.md:162
+```
+And then then Context example:
+```scala
+Context.ioContext.flatMap(contextError)
+// catcheffect.Context$NoHandlerInScope: A Local operator was invoked outside of it's handler.
+// The Local operator was invoked at README.md:169.
+// The handler for this Local instance was defined at README.md:168.
+// 
+// You may have leaked the Local algebra by accident.
+// This can be casued by function signatures such as the following.
+// ```
+//   trait Algebra[F[_]] {
+//     def doSomething: F[Unit]
+//   }
+//   def make[F[_]](loc: Local[F, A]): F[Algebra[F]] = ???
+//   // ...
+//   Context[F].use(initialValue) { loc => 
+//      make[F](loc)
+//   }.flatMap(algebra => algebra.doSomething)
+// ```
+// 
+// Either move your handler further out.
+// ```
+//   Context[F].use(initialValue) { loc => 
+//      make[F](loc)
+//        .flatMap(algebra => algebra.doSomething)
+//   }
+// ```
+// 
+// Or use the low-level `Context[F].allocated` method.
+// ```
+//   Context[F].allocated[A].flatMap { case (loc, ffk) => 
+//      val fk = ffk(initialValue)
+//      fk {
+//          make[F](loc).mapK(fk)
+//      }
+//   }.flatMap(algebra => algebra.doSomething)
+// ```
 ```

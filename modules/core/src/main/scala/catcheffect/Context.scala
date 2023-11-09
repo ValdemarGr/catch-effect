@@ -119,7 +119,7 @@ object Context {
 
   final case class NoHandlerInScope(alloc: SourcePos, caller: SourcePos) extends RuntimeException {
     override def getMessage(): String =
-      s"""|A local Local operator was invoked outside of it's handler.
+      s"""|A Local operator was invoked outside of it's handler.
           |The Local operator was invoked at $caller.
           |The handler for this Local instance was defined at $alloc.
           |

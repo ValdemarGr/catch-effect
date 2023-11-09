@@ -30,6 +30,16 @@ import cats._
 import cats.effect._
 import cats.implicits._
 import cats.effect.std._
+def ioPrint[A](ioa: IO[A])(stringRepr: String): Unit = {
+    println("```scala")
+    println(stringRepr)
+    import cats.effect.unsafe.implicits.global
+    val a = ioa.unsafeRunSync()
+    if (a != ()) {
+        println(a.toString().split("\n").map(x => s"// $x").mkString("\n"))
+    }
+    println("```")
+}
 def println_(a: Any) = println(a)
 implicit lazy val munitConsoleInstance: Console[IO] = new Console[IO] {
   def error[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
@@ -59,11 +69,9 @@ def run[F[_]: Sync: Context: Console]: F[Unit] =
 ```
 Running the program yields:
 ```scala mdoc:passthrough
-import cats.effect.unsafe.implicits.global
-println("```scala")
-println("Context.ioContext.flatMap(implicit C => run[IO])")
-Context.ioContext.flatMap(implicit C => run[IO]).unsafeRunSync()
-println("```")
+ioPrint(Context.ioContext.flatMap(implicit C => run[IO]))(
+  "Context.ioContext.flatMap(implicit C => run[IO])"
+)
 ```
 
 ### Other ways of constructing Context
@@ -107,12 +115,10 @@ def doDomainEffect[F[_]: Catch: Async: Console]: F[Unit] =
 ```
 Running this program yields:
 ```scala mdoc:passthrough
-println("```scala")
-println("Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO])")
-Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO]).unsafeRunSync()
-println("```")
+ioPrint(Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO]))(
+  "Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO])"
+)
 ```
-
 
 Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
 
@@ -131,3 +137,31 @@ def example[F[_]: Context: Concurrent] =
     }
   }
 ```
+
+## Unsafe use of algebras
+Like any resources, the structures defined in this library are only well-behaved within a scope.
+Use outside of their scope is considered an error and will be detected (like a resource leak).
+
+Consider the following examples that lead to errors.
+```scala mdoc:silent
+def catchError(ctch: Catch[IO]) =
+  ctch.use[String](x => IO(x)).flatMap{ e => 
+    e.traverse(_.raise("Oh no!"))
+  }
+
+def contextError(ctx: Context[IO]) = 
+  ctx.use("initial")(x => IO(x)).flatMap{ L => 
+    L.ask
+  }
+```
+Running the Catch example:
+```scala mdoc:passthrough
+ioPrint(Catch.ioCatch.flatMap(catchError).attempt.map(_.left.toOption.get))(
+  "Catch.ioCatch.flatMap(catchError)"
+)
+```
+And then then Context example:
+```scala mdoc:passthrough
+ioPrint(Context.ioContext.flatMap(contextError).attempt.map(_.left.toOption.get))(
+  "Context.ioContext.flatMap(contextError)"
+)
