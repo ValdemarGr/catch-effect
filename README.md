@@ -20,20 +20,6 @@ Context.ioContext: IO[Context[IO]]
 ### Example
 When you have an instance of `Context` in scope, new `Local` instances can be spawned.
 ```scala
-import cats._
-import cats.effect._
-import cats.implicits._
-import cats.effect.std._
-def println_(a: Any) = println(a)
-implicit lazy val munitConsoleInstance: Console[IO] = new Console[IO] {
-  def error[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
-  def errorln[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
-  def print[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
-  def println[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = IO.delay(println_("// " + S.show(a))) 
-  def readLineWithCharset(charset: java.nio.charset.Charset): cats.effect.IO[String] = ??? 
-}
-```
-```scala
 type Auth = String
 def authorizedRoute[F[_]: Console: Sync](implicit L: Local[F, Auth]): F[Unit] = 
     for {
@@ -53,8 +39,9 @@ def run[F[_]: Sync: Context: Console] =
         authorizedRoute[F]
     }
 ```
-Which prints:
+Running the program yields:
 ```scala
+Context.ioContext.flatMap(implicit C => run[IO])
 // doing user op with user
 // doing admin operation with admin
 // doing user op with user again
@@ -101,7 +88,9 @@ def doDomainEffect[F[_]: Catch: Async: Console] =
         case Right(()) => Console[F].println("Success!")
     }
 ```
+Running this program yields:
 ```scala
+Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO])
 // Missing data!
 ```
 

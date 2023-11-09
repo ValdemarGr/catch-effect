@@ -25,7 +25,7 @@ Context.ioContext: IO[Context[IO]]
 
 ### Example
 When you have an instance of `Context` in scope, new `Local` instances can be spawned.
-```scala mdoc
+```scala mdoc:invisible
 import cats._
 import cats.effect._
 import cats.implicits._
@@ -59,10 +59,11 @@ def run[F[_]: Sync: Context: Console] =
         authorizedRoute[F]
     }
 ```
-Which prints:
+Running the program yields:
 ```scala mdoc:passthrough
 import cats.effect.unsafe.implicits.global
 println("```scala")
+println("Context.ioContext.flatMap(implicit C => run[IO])")
 Context.ioContext.flatMap(implicit C => run[IO]).unsafeRunSync()
 println("```")
 ```
@@ -108,8 +109,10 @@ def doDomainEffect[F[_]: Catch: Async: Console] =
         case Right(()) => Console[F].println("Success!")
     }
 ```
+Running this program yields:
 ```scala mdoc:passthrough
 println("```scala")
+println("Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO])")
 Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO]).unsafeRunSync()
 println("```")
 ```
