@@ -124,7 +124,7 @@ object Context {
           |The handler for this Local instance was defined at $alloc.
           |
           |You may have leaked the Local algebra by accident.
-          |This can be casued by function signatures such as the following.
+          |This can be casued by functions of similar form as the following.
           |```
           |  trait Algebra[F[_]] {
           |    def doSomething: F[Unit]

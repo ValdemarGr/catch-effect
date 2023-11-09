@@ -109,7 +109,7 @@ def example[F[_]: Context: Concurrent] =
 ```
 
 ## Unsafe use of algebras
-Like other resource with limited lifetime, the structures defined in this library are only well-behaved within a scope.
+Like any resources, the structures defined in this library are only well-behaved within a scope.
 Use outside of their scope is considered an error and will be detected (like a resource leak).
 
 Consider the following examples that lead to errors.
@@ -133,7 +133,7 @@ Catch.ioCatch.flatMap(catchError)
 // Either widen the scope of your handler or don't leak the algebra.
 // The handler was defined at README.md:162
 ```
-And the Context example:
+And then then Context example:
 ```scala
 Context.ioContext.flatMap(contextError)
 // catcheffect.Context$NoHandlerInScope: A Local operator was invoked outside of it's handler.
@@ -141,7 +141,7 @@ Context.ioContext.flatMap(contextError)
 // The handler for this Local instance was defined at README.md:168.
 // 
 // You may have leaked the Local algebra by accident.
-// This can be casued by function signatures such as the following.
+// This can be casued by functions of similar form as the following.
 // ```
 //   trait Algebra[F[_]] {
 //     def doSomething: F[Unit]
