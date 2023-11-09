@@ -1,3 +1,18 @@
+/*
+ * Copyright 2023 Valdemar Grange
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package catcheffect
 
 import org.typelevel.vault._
@@ -51,63 +66,61 @@ object Local {
         Kleisli.ask[F, C]
 
       override def local[A](fa: Kleisli[F, C, A])(f: C => C)(implicit
-        sp: SourcePos
+          sp: SourcePos
       ): Kleisli[F, C, A] =
         Kleisli.local(f)(fa)
     }
 }
 
-/**
- * An abstraction that can construct an instance of the [[Local]] mtl algebra without any constraints.
- *
- * You gain the (cap)ability to introduce a new instance of [[Local]] for any type, anywhere a [[Context]] is present.
- *
- * For programs written in [[cats.data.Kleisli]] or tagless final, [[Context]] provides the ability to introduce new [[Local]] instances
- * without having to lift any algebras or penalize your performance.
- *
- * Nested use of [[Context]] is well defined.
- */
+/** An abstraction that can construct an instance of the [[Local]] mtl algebra without any constraints.
+  *
+  * You gain the (cap)ability to introduce a new instance of [[Local]] for any type, anywhere a [[Context]] is present.
+  *
+  * For programs written in [[cats.data.Kleisli]] or tagless final, [[Context]] provides the ability to introduce new [[Local]] instances
+  * without having to lift any algebras or penalize your performance.
+  *
+  * Nested use of [[Context]] is well defined.
+  */
 trait Context[F[_]] {
   def monad: Monad[F]
 
-  /**
-   * The low-level primitive which makes up a [[Context]]. This api is low-level and potentially unsafe, so use it with caution.
-   *
-   * [[allocated]] is more powerful than [[use]] in that you can write a program with [[Local]] without having an initial value yet.
-   * Allocated let's the user choose when to provide the initial value in either through `set` or a natural transformation `C => F ~> F`.
-   *
-   * If an effect `F` that depends on [[Local]] is not provided with an initial value, through either `set` or `setK`, a detailed runtime error will be raised.
-   *
-   * For instance, here is a good use-case for allocated.
-   * {{{
-   *   trait MyAlgebra[F[_]] {
-   *     def doThing: F[Unit]
-   *
-   *     def mapK[G[_]](fk: F ~> G): MyAlgebra[G]
-   *   }
-   *   // Let it be an expensive operation to construct an instance of MyAlgebra,
-   *   // such that we only wish to construct it once.
-   *   def make[F[_]](loc: Local[F, Auth]): MyAlgebra[F] = ???
-   *
-   *   def processInput[F[_]](alg: MyAlgebra[F]) = ???
-   *   // ...
-   *   Context[F].allocated.flatMap{ loc =>
-   *      val alg = make[F](loc)
-   *
-   *      def runAuthedRequest(auth: Auth) =
-   *        processInput[F](alg.mapK(loc.setK(auth)))
-   *
-   *      startAuthedServer(runAuthedRequest)
-   *   }
-   * }}}
-   */
+  /** The low-level primitive which makes up a [[Context]]. This api is low-level and potentially unsafe, so use it with caution.
+    *
+    * [[allocated]] is more powerful than [[use]] in that you can write a program with [[Local]] without having an initial value yet.
+    * Allocated let's the user choose when to provide the initial value in either through `set` or a natural transformation `C => F ~> F`.
+    *
+    * If an effect `F` that depends on [[Local]] is not provided with an initial value, through either `set` or `setK`, a detailed runtime
+    * error will be raised.
+    *
+    * For instance, here is a good use-case for allocated.
+    * {{{
+    *   trait MyAlgebra[F[_]] {
+    *     def doThing: F[Unit]
+    *
+    *     def mapK[G[_]](fk: F ~> G): MyAlgebra[G]
+    *   }
+    *   // Let it be an expensive operation to construct an instance of MyAlgebra,
+    *   // such that we only wish to construct it once.
+    *   def make[F[_]](loc: Local[F, Auth]): MyAlgebra[F] = ???
+    *
+    *   def processInput[F[_]](alg: MyAlgebra[F]) = ???
+    *   // ...
+    *   Context[F].allocated.flatMap{ loc =>
+    *      val alg = make[F](loc)
+    *
+    *      def runAuthedRequest(auth: Auth) =
+    *        processInput[F](alg.mapK(loc.setK(auth)))
+    *
+    *      startAuthedServer(runAuthedRequest)
+    *   }
+    * }}}
+    */
   def allocated[C](implicit sp: SourcePos): F[Local[F, C]]
 
-  /**
-   * Within the scope of `f`, the use of [[Local]] is well defined.
-   *
-   * If you use this combinator like you would a [[cats.effect.Resource]]'s `use`, your program will be safe.
-   */
+  /** Within the scope of `f`, the use of [[Local]] is well defined.
+    *
+    * If you use this combinator like you would a [[cats.effect.Resource]]'s `use`, your program will be safe.
+    */
   def use[C, A](c: C)(f: Local[F, C] => F[A])(implicit sp: SourcePos): F[A] =
     monad.flatMap(allocated[C]) { l =>
       l.set(f(l))(c)
@@ -165,7 +178,7 @@ object Context {
       override def monad: Monad[F] = F
 
       override def allocated[C](implicit
-        sp0: SourcePos
+          sp0: SourcePos
       ): F[Local[F, C]] =
         Key.newKey[F, C].map { key =>
           new Local[F, C] {
@@ -183,7 +196,7 @@ object Context {
                 })
 
             override def local[A](fa: F[A])(f: C => C)(implicit
-              sp: SourcePos
+                sp: SourcePos
             ): F[A] =
               ask(sp).flatMap(c => set(fa)(f(c))(sp))
           }
