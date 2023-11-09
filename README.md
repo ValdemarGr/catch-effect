@@ -71,9 +71,9 @@ With an instance of `Catch` in scope, you can create locally scoped domain-speci
 ```scala
 sealed trait DomainError
 case object MissingData extends DomainError
-def domainFunction[F[_]: Console](R: Raise[F, DomainError])(implicit F: Async[F]) = 
+def domainFunction[F[_]: Console: Async](R: Raise[F, DomainError]) = 
     for {
-        xs <- F.delay((0 to 10).toList)
+        xs <- Async[F].delay((0 to 10).toList)
         _ <- R.raiseIf(MissingData)(xs.nonEmpty)
         _ <- Console[F].println("Firing the missiles!")
     } yield ()
