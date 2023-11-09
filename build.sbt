@@ -37,9 +37,9 @@ lazy val sharedSettings = Seq(
   },
   libraryDependencies ++= Seq(
     "org.typelevel" %% "cats-effect" % "3.5.2",
-    "org.typelevel" %% "cats-mtl" % "1.3.1",
+    //"org.typelevel" %% "cats-mtl" % "1.3.1",
     "org.typelevel" %% "cats-core" % "2.9.0",
-    "org.typelevel" %% "cats-free" % "2.9.0",
+    //"org.typelevel" %% "cats-free" % "2.9.0",
     "org.typelevel" %% "vault" % "3.5.0",
     "org.tpolecat" %% "sourcepos" % "1.1.0",
     "org.scalameta" %% "munit" % "1.0.0-M10" % Test,
@@ -48,6 +48,20 @@ lazy val sharedSettings = Seq(
 )
 
 lazy val core = project
-  .in(file("."))
+  .in(file("modules/core"))
   .settings(sharedSettings)
-  .settings(name := "cat-a-piler-core")
+  .settings(name := "catch-effect")
+
+lazy val readme = project
+  .in(file("modules/readme"))
+  .settings(
+    moduleName := "catch-effect-readme",
+    mdocIn := file("readme/README.md"),
+    mdocOut := file("./README.md"),
+    mdocVariables ++= Map(
+      "VERSION" -> tlLatestVersion.value.getOrElse(version.value)
+    ),
+    tlFatalWarnings := false
+  )
+  .dependsOn(core)
+  .enablePlugins(MdocPlugin, NoPublishPlugin)

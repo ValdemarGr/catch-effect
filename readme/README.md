@@ -13,26 +13,14 @@ If you are using `cats-effect` and you are familiar with `IOLocal`, then Context
 However, `Context` allows spawning new ad-hoc `Local` instances for any effect type `F`, and not just `IO`.
 
 You can construct an instance of `Context` in various ways, here is one using `cats-effect`.
-```scala
+```scala mdoc
 import catcheffect._
 Context.ioContext
-// res0: cats.effect.IO[Context[cats.effect.IO]] = Map(
-//   ioe = Map(
-//     ioe = Delay(
-//       thunk = cats.effect.IOLocal$$$Lambda$12299/0x000000080305d188@550df481,
-//       event = cats.effect.tracing.TracingEvent$StackTrace
-//     ),
-//     f = catcheffect.LocalForIOLocal$$$Lambda$12300/0x000000080305d430@402c664c,
-//     event = cats.effect.tracing.TracingEvent$StackTrace
-//   ),
-//   f = catcheffect.Context$$$Lambda$12301/0x000000080305d7e0@85466ac,
-//   event = cats.effect.tracing.TracingEvent$StackTrace
-// )
 ```
 
 ### Example
 When you have an instance of `Context` in scope, new `Local` instances can be spawned.
-```scala
+```scala mdoc
 import cats._
 import cats.effect._
 import cats.implicits._
@@ -61,9 +49,8 @@ def run[F[_]: Monad: Console: Context] =
 ### Other ways of constructing Context
 There are several other ways to construct `Context` than to use `IO`.
 If you are working in `Kleisli` a natural implementation exists.
-```scala
+```scala mdoc
 Context.kleisli[IO]
-// res1: Context[[γ$6$]data.Kleisli[IO, org.typelevel.vault.Vault, γ$6$]] = catcheffect.Context$$anon$5@2d39e919
 ```
 Or for any instance of `Local[F, Vault]`.
 ```scala
@@ -76,25 +63,13 @@ Context.local[IO]
 The MTL counterpart of `Catch` is `EitherT`.
 `Catch` can introduce new ad-hoc error channels that are independent of eachother.
 There are various ways to construct a catch, but the simplest (given that you're working in `cats-effect`) is the following.
-```scala
+```scala mdoc
 Catch.ioCatch
-// res2: IO[Catch[IO]] = Map(
-//   ioe = Map(
-//     ioe = Delay(
-//       thunk = cats.effect.IOLocal$$$Lambda$12299/0x000000080305d188@2f73cdc7,
-//       event = cats.effect.tracing.TracingEvent$StackTrace
-//     ),
-//     f = catcheffect.LocalForIOLocal$$$Lambda$12300/0x000000080305d430@402c664c,
-//     event = cats.effect.tracing.TracingEvent$StackTrace
-//   ),
-//   f = catcheffect.Catch$$$Lambda$12302/0x0000000803079e48@2fe47c2a,
-//   event = cats.effect.tracing.TracingEvent$StackTrace
-// )
 ```
 
 ### Example
 With an instance of `Catch` in scope, you can create locally scoped domain-specific errors.
-```scala
+```scala mdoc
 sealed trait DomainError
 case object MissingData extends DomainError
 def domainFunction[F[_]: Console](implicit F: Async[F], R: Raise[F, DomainError]) = 
@@ -120,7 +95,7 @@ Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and 
 2. Catch can occur for an instance of `Local[F, Vault]` (or `Kleisli[F, Vault, A]`) and `Concurrent[F]` via cancellation
 
 An interesting observation is that you can in fact construct `Catch` if you have `Context` and `Concurrent`.
-```scala
+```scala mdoc
 import org.typelevel.vault._
 trait MyError
 def example[F[_]: Context: Concurrent] =
