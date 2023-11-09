@@ -42,20 +42,20 @@ implicit lazy val munitConsoleInstance: Console[IO] = new Console[IO] {
 ```scala mdoc
 type Auth = String
 def authorizedRoute[F[_]: Console: Sync](L: Local[F, Auth]): F[Unit] = 
-    for {
-        user <- L.ask
-        _ <- Console[F].println(s"doing user op with $user")
-        _ <- L.local{
-            L.ask.flatMap{ user =>
-                Console[F].println(s"doing admin operation with $user")
-            }
-        }(_ => "admin")
-        user <- L.ask
-        _ <- Console[F].println(s"doing user op with $user again")
-    } yield ()
+  for {
+    user <- L.ask
+    _ <- Console[F].println(s"doing user op with $user")
+    _ <- L.local{
+      L.ask.flatMap{ user =>
+        Console[F].println(s"doing admin operation with $user")
+      }
+    }(_ => "admin")
+    user <- L.ask
+    _ <- Console[F].println(s"doing user op with $user again")
+  } yield ()
 
 def run[F[_]: Sync: Context: Console]: F[Unit] = 
-    Context[F].use("user")(authorizedRoute[F])
+  Context[F].use("user")(authorizedRoute[F])
 ```
 Running the program yields:
 ```scala mdoc:passthrough
@@ -93,17 +93,17 @@ With an instance of `Catch` in scope, you can create locally scoped domain-speci
 sealed trait DomainError
 case object MissingData extends DomainError
 def domainFunction[F[_]: Console](R: Raise[F, DomainError])(implicit F: Async[F]) = 
-    for {
-        xs <- F.delay((0 to 10).toList)
-        _ <- R.raiseIf(MissingData)(xs.nonEmpty)
-        _ <- Console[F].println("Firing the missiles!")
-    } yield ()
+  for {
+    xs <- F.delay((0 to 10).toList)
+    _ <- R.raiseIf(MissingData)(xs.nonEmpty)
+    _ <- Console[F].println("Firing the missiles!")
+  } yield ()
 
 def doDomainEffect[F[_]: Catch: Async: Console]: F[Unit] = 
-    Catch[F].use[DomainError](domainFunction[F]).flatMap{
-        case Left(MissingData) => Console[F].println("Missing data!")
-        case Right(()) => Console[F].println("Success!")
-    }
+  Catch[F].use[DomainError](domainFunction[F]).flatMap{
+    case Left(MissingData) => Console[F].println("Missing data!")
+    case Right(()) => Console[F].println("Success!")
+  }
 ```
 Running this program yields:
 ```scala mdoc:passthrough
@@ -125,9 +125,9 @@ An interesting observation is that you can in fact construct `Catch` if you have
 import org.typelevel.vault._
 trait MyError
 def example[F[_]: Context: Concurrent] =
-    Context[F].use(Vault.empty){ implicit L => 
-        Catch.fromLocal[F].use[MyError]{ implicit R => 
-            Concurrent[F].unit
-        }
+  Context[F].use(Vault.empty){ implicit L => 
+    Catch.fromLocal[F].use[MyError]{ implicit R => 
+      Concurrent[F].unit
     }
+  }
 ```
