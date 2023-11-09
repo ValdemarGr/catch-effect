@@ -163,8 +163,8 @@ Context.ioContext.flatMap(contextError)
 // 
 // Or use the low-level `Context[F].allocated` method.
 // ```
-//   Context[F].allocated[A].flatMap { case (loc, ffk) => 
-//      val fk = ffk(initialValue)
+//   Context[F].allocated[A].flatMap { loc => 
+//      val fk = loc.setK(initialValue)
 //      fk {
 //          make[F](loc).mapK(fk)
 //      }
