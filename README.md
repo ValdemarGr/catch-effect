@@ -14,20 +14,7 @@ However, `Context` allows spawning new ad-hoc `Local` instances for any effect t
 
 You can construct an instance of `Context` in various ways, here is one using `cats-effect`.
 ```scala
-import catcheffect._
-Context.ioContext
-// res0: cats.effect.IO[Context[cats.effect.IO]] = Map(
-//   ioe = Map(
-//     ioe = Delay(
-//       thunk = cats.effect.IOLocal$$$Lambda$12299/0x000000080305d188@550df481,
-//       event = cats.effect.tracing.TracingEvent$StackTrace
-//     ),
-//     f = catcheffect.LocalForIOLocal$$$Lambda$12300/0x000000080305d430@402c664c,
-//     event = cats.effect.tracing.TracingEvent$StackTrace
-//   ),
-//   f = catcheffect.Context$$$Lambda$12301/0x000000080305d7e0@85466ac,
-//   event = cats.effect.tracing.TracingEvent$StackTrace
-// )
+Context.ioContext: IO[Context[IO]]
 ```
 
 ### Example
@@ -37,9 +24,18 @@ import cats._
 import cats.effect._
 import cats.implicits._
 import cats.effect.std._
-
+def println_(a: Any) = println(a)
+implicit lazy val munitConsoleInstance: Console[IO] = new Console[IO] {
+  def error[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
+  def errorln[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
+  def print[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
+  def println[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = IO.delay(println_("// " + S.show(a))) 
+  def readLineWithCharset(charset: java.nio.charset.Charset): cats.effect.IO[String] = ??? 
+}
+```
+```scala
 type Auth = String
-def authorizedRoute[F[_]: Monad: Console](implicit L: Local[F, Auth]): F[Unit] = 
+def authorizedRoute[F[_]: Console: Sync](implicit L: Local[F, Auth]): F[Unit] = 
     for {
         user <- L.ask
         _ <- Console[F].println(s"doing user op with $user")
@@ -49,21 +45,26 @@ def authorizedRoute[F[_]: Monad: Console](implicit L: Local[F, Auth]): F[Unit] =
             }
         }(_ => "admin")
         user <- L.ask
-        _ <- Console[F].println(s"now I am working with a normal $user again")
+        _ <- Console[F].println(s"doing user op with $user again")
     } yield ()
 
-def run[F[_]: Monad: Console: Context] = 
+def run[F[_]: Sync: Context: Console] = 
     Context[F].use("user"){ implicit L =>
         authorizedRoute[F]
     }
+```
+Which prints:
+```scala
+// doing user op with user
+// doing admin operation with admin
+// doing user op with user again
 ```
 
 ### Other ways of constructing Context
 There are several other ways to construct `Context` than to use `IO`.
 If you are working in `Kleisli` a natural implementation exists.
 ```scala
-Context.kleisli[IO]
-// res1: Context[[γ$6$]data.Kleisli[IO, org.typelevel.vault.Vault, γ$6$]] = catcheffect.Context$$anon$5@2d39e919
+Context.kleisli[IO]: Context[Kleisli[IO, Vault, *]]
 ```
 Or for any instance of `Local[F, Vault]`.
 ```scala
@@ -77,19 +78,7 @@ The MTL counterpart of `Catch` is `EitherT`.
 `Catch` can introduce new ad-hoc error channels that are independent of eachother.
 There are various ways to construct a catch, but the simplest (given that you're working in `cats-effect`) is the following.
 ```scala
-Catch.ioCatch
-// res2: IO[Catch[IO]] = Map(
-//   ioe = Map(
-//     ioe = Delay(
-//       thunk = cats.effect.IOLocal$$$Lambda$12299/0x000000080305d188@2f73cdc7,
-//       event = cats.effect.tracing.TracingEvent$StackTrace
-//     ),
-//     f = catcheffect.LocalForIOLocal$$$Lambda$12300/0x000000080305d430@402c664c,
-//     event = cats.effect.tracing.TracingEvent$StackTrace
-//   ),
-//   f = catcheffect.Catch$$$Lambda$12302/0x0000000803079e48@2fe47c2a,
-//   event = cats.effect.tracing.TracingEvent$StackTrace
-// )
+Catch.ioCatch: IO[Catch[IO]]
 ```
 
 ### Example
@@ -107,11 +96,15 @@ def domainFunction[F[_]: Console](implicit F: Async[F], R: Raise[F, DomainError]
 def doDomainEffect[F[_]: Catch: Async: Console] = 
     Catch[F].use[DomainError]{ implicit R =>
         domainFunction[F]
-    }.map{
-        case Left(MissingData) => ???
-        case Right(()) => ???
+    }.flatMap{
+        case Left(MissingData) => Console[F].println("Missing data!")
+        case Right(()) => Console[F].println("Success!")
     }
 ```
+```scala
+// Missing data!
+```
+
 
 Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
 

@@ -13,9 +13,14 @@ If you are using `cats-effect` and you are familiar with `IOLocal`, then Context
 However, `Context` allows spawning new ad-hoc `Local` instances for any effect type `F`, and not just `IO`.
 
 You can construct an instance of `Context` in various ways, here is one using `cats-effect`.
-```scala mdoc
+```scala mdoc:invisible
 import catcheffect._
-Context.ioContext
+import cats.effect._
+import org.typelevel.vault._
+import cats.data._
+```
+```scala mdoc:silent
+Context.ioContext: IO[Context[IO]]
 ```
 
 ### Example
@@ -25,9 +30,18 @@ import cats._
 import cats.effect._
 import cats.implicits._
 import cats.effect.std._
-
+def println_(a: Any) = println(a)
+implicit lazy val munitConsoleInstance: Console[IO] = new Console[IO] {
+  def error[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
+  def errorln[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
+  def print[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = ??? 
+  def println[A](a: A)(implicit S: cats.Show[A]): cats.effect.IO[Unit] = IO.delay(println_("// " + S.show(a))) 
+  def readLineWithCharset(charset: java.nio.charset.Charset): cats.effect.IO[String] = ??? 
+}
+```
+```scala mdoc
 type Auth = String
-def authorizedRoute[F[_]: Monad: Console](implicit L: Local[F, Auth]): F[Unit] = 
+def authorizedRoute[F[_]: Console: Sync](implicit L: Local[F, Auth]): F[Unit] = 
     for {
         user <- L.ask
         _ <- Console[F].println(s"doing user op with $user")
@@ -37,20 +51,27 @@ def authorizedRoute[F[_]: Monad: Console](implicit L: Local[F, Auth]): F[Unit] =
             }
         }(_ => "admin")
         user <- L.ask
-        _ <- Console[F].println(s"now I am working with a normal $user again")
+        _ <- Console[F].println(s"doing user op with $user again")
     } yield ()
 
-def run[F[_]: Monad: Console: Context] = 
+def run[F[_]: Sync: Context: Console] = 
     Context[F].use("user"){ implicit L =>
         authorizedRoute[F]
     }
+```
+Which prints:
+```scala mdoc:passthrough
+import cats.effect.unsafe.implicits.global
+println("```scala")
+Context.ioContext.flatMap(implicit C => run[IO]).unsafeRunSync()
+println("```")
 ```
 
 ### Other ways of constructing Context
 There are several other ways to construct `Context` than to use `IO`.
 If you are working in `Kleisli` a natural implementation exists.
-```scala mdoc
-Context.kleisli[IO]
+```scala mdoc:silent
+Context.kleisli[IO]: Context[Kleisli[IO, Vault, *]]
 ```
 Or for any instance of `Local[F, Vault]`.
 ```scala
@@ -63,8 +84,8 @@ Context.local[IO]
 The MTL counterpart of `Catch` is `EitherT`.
 `Catch` can introduce new ad-hoc error channels that are independent of eachother.
 There are various ways to construct a catch, but the simplest (given that you're working in `cats-effect`) is the following.
-```scala mdoc
-Catch.ioCatch
+```scala mdoc:silent
+Catch.ioCatch: IO[Catch[IO]]
 ```
 
 ### Example
@@ -82,11 +103,17 @@ def domainFunction[F[_]: Console](implicit F: Async[F], R: Raise[F, DomainError]
 def doDomainEffect[F[_]: Catch: Async: Console] = 
     Catch[F].use[DomainError]{ implicit R =>
         domainFunction[F]
-    }.map{
-        case Left(MissingData) => ???
-        case Right(()) => ???
+    }.flatMap{
+        case Left(MissingData) => Console[F].println("Missing data!")
+        case Right(()) => Console[F].println("Success!")
     }
 ```
+```scala mdoc:passthrough
+println("```scala")
+Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO]).unsafeRunSync()
+println("```")
+```
+
 
 Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
 
