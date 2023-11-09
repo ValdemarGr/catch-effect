@@ -109,7 +109,7 @@ def example[F[_]: Context: Concurrent] =
 ```
 
 ## Unsafe use of algebras
-Like any resources, the structures defined in this library are only well-behaved within a scope.
+Like other resource with limited lifetime, the structures defined in this library are only well-behaved within a scope.
 Use outside of their scope is considered an error and will be detected (like a resource leak).
 
 Consider the following examples that lead to errors.
