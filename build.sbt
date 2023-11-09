@@ -5,9 +5,6 @@ ThisBuild / crossScalaVersions := Seq(scala213Version, "3.3.0")
 ThisBuild / organization := "io.github.valdemargr"
 
 ThisBuild / tlBaseVersion := "0.0"
-ThisBuild / tlCiHeaderCheck := false
-ThisBuild / tlCiDocCheck := false
-ThisBuild / tlCiScalafmtCheck := false
 ThisBuild / tlUntaggedAreSnapshots := false
 
 ThisBuild / licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))

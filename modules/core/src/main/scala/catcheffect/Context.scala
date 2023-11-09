@@ -203,9 +203,10 @@ object Context {
         }
     }
 
-  def kleisli[F[_]: MonadThrow](implicit U: Unique[F]): Context[Kleisli[F, Vault, *]] = {
+  def kleisli[F[_]](implicit F: MonadThrow[F], U: Unique[F]): Context[Kleisli[F, Vault, *]] = {
+    val K = Kleisli.catsDataApplicativeForKleisli[F, Vault](F)
     implicit val uniqueInstance = new Unique[Kleisli[F, Vault, *]] {
-      override def applicative: Applicative[Kleisli[F, Vault, *]] = implicitly
+      override def applicative: Applicative[Kleisli[F, Vault, *]] = K
       override def unique: Kleisli[F, Vault, Unique.Token] = Kleisli.liftF(U.unique)
     }
     local[Kleisli[F, Vault, *]]

@@ -245,17 +245,18 @@ object Catch {
     }
   }
 
-  def eitherT[F[_]: Concurrent]: Catch[EitherT[F, Vault, *]] = {
+  def eitherT[F[_]](implicit F: Concurrent[F]): Catch[EitherT[F, Vault, *]] = {
     type G[A] = EitherT[F, Vault, A]
+    implicit val G = EitherT.catsDataMonadErrorForEitherT[F, Vault](F)
     implicit val handle = new Handle[G, Vault] {
-      def monad: Monad[G] = implicitly
+      def monad: Monad[G] = G
       override def raise[A](e: Vault)(implicit sp: SourcePos): G[A] =
-        EitherT.leftT(e)
+        G.raiseError[A](e)
 
       override def handleWith[A](fa: G[A])(f: Vault => G[A])(implicit
           sp: SourcePos
       ): G[A] =
-        fa.handleErrorWith(f)
+        G.handleErrorWith(fa)(f)
     }
     fromHandle[G]
   }
