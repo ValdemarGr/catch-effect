@@ -21,7 +21,7 @@ Context.ioContext: IO[Context[IO]]
 When you have an instance of `Context` in scope, new `Local` instances can be spawned.
 ```scala
 type Auth = String
-def authorizedRoute[F[_]: Console: Sync](implicit L: Local[F, Auth]): F[Unit] = 
+def authorizedRoute[F[_]: Console: Sync](L: Local[F, Auth]): F[Unit] = 
     for {
         user <- L.ask
         _ <- Console[F].println(s"doing user op with $user")
@@ -35,7 +35,7 @@ def authorizedRoute[F[_]: Console: Sync](implicit L: Local[F, Auth]): F[Unit] =
     } yield ()
 
 def run[F[_]: Sync: Context: Console]: F[Unit] = 
-    Context[F].use("user")(implicit L => authorizedRoute[F])
+    Context[F].use("user")(authorizedRoute[F])
 ```
 Running the program yields:
 ```scala
@@ -71,7 +71,7 @@ With an instance of `Catch` in scope, you can create locally scoped domain-speci
 ```scala
 sealed trait DomainError
 case object MissingData extends DomainError
-def domainFunction[F[_]: Console](implicit F: Async[F], R: Raise[F, DomainError]) = 
+def domainFunction[F[_]: Console](R: Raise[F, DomainError])(implicit F: Async[F]) = 
     for {
         xs <- F.delay((0 to 10).toList)
         _ <- R.raiseIf(MissingData)(xs.nonEmpty)
@@ -79,12 +79,10 @@ def domainFunction[F[_]: Console](implicit F: Async[F], R: Raise[F, DomainError]
     } yield ()
 
 def doDomainEffect[F[_]: Catch: Async: Console]: F[Unit] = 
-    Catch[F]
-        .use[DomainError](implicit R => domainFunction[F])
-        .flatMap{
-            case Left(MissingData) => Console[F].println("Missing data!")
-            case Right(()) => Console[F].println("Success!")
-        }
+    Catch[F].use[DomainError](domainFunction[F]).flatMap{
+        case Left(MissingData) => Console[F].println("Missing data!")
+        case Right(()) => Console[F].println("Success!")
+    }
 ```
 Running this program yields:
 ```scala
