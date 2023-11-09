@@ -193,9 +193,9 @@ object Catch {
     *
     * Using cancellation to raise errors has some advantages and disadvantages.
     *
-    * [[Catch]], unlike [[EitherT]], does not have potentially dangerous semantics regarding resource safety (EitherT's left case when
+    * [[Catch]], unlike [[cats.data.EitherT]], does not have potentially dangerous semantics regarding resource safety (EitherT's left case when
     * releasing resources). For reference the default implementation of [[cats.effect.MonadCancel]]'s `guarenteeCase` will not invoke the
-    * finalizer when you use [[EitherT]] and the effect is in the `Left` case.
+    * finalizer when you use [[cats.data.EitherT]] and the effect is in the `Left` case.
     */
   def fromLocal[F[_]](implicit F: Concurrent[F], L: Local[F, Vault]): Catch[F] = {
     new Catch[F] {
