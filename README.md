@@ -133,7 +133,7 @@ Catch.ioCatch.flatMap(catchError)
 // Either widen the scope of your handler or don't leak the algebra.
 // The handler was defined at README.md:162
 ```
-And then then Context example:
+And the Context example:
 ```scala
 Context.ioContext.flatMap(contextError)
 // catcheffect.Context$NoHandlerInScope: A Local operator was invoked outside of it's handler.
