@@ -35,13 +35,13 @@ class CatchTest extends CatsEffectSuite {
   }
 
   test("leaking algebra is considered an error") {
-    val program = C.use[String] { hs =>
-      IO.pure(hs)
-    }.flatMap(_.traverse(_.raise("error")))
+    val program = C
+      .use[String](hs => IO.pure(hs))
+      .flatMap(_.traverse(_.raise("error")))
 
-    program.attempt.map{
+    program.attempt.map {
       case Right(x) => fail(x.toString()): Unit
-      case Left(x) => assert(x.getMessage().contains("You are trying to"))
+      case Left(x)  => assert(x.getMessage().contains("You are trying to"))
     }
   }
 }
