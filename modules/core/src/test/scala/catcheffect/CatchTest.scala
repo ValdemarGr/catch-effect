@@ -41,7 +41,7 @@ class CatchTest extends CatsEffectSuite {
 
     program.attempt.map {
       case Right(x) => fail(x.toString()): Unit
-      case Left(x)  => assert(x.getMessage().contains("You are trying to"))
+      case Left(x)  => assert(x.getMessage().contains("You are trying to"), x.getMessage())
     }
   }
 }
