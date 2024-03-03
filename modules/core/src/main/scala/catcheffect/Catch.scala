@@ -20,8 +20,7 @@ import cats._
 import cats.implicits._
 import org.tpolecat.sourcepos._
 import org.typelevel.vault._
-import cats.data.EitherT
-import cats.data.Kleisli
+import cats.data._
 
 trait Raise[F[_], E] { self =>
   def monad: Monad[F]
@@ -42,6 +41,15 @@ trait Raise[F[_], E] { self =>
       oa: Option[A]
   )(implicit sp: SourcePos): F[A] =
     oa.fold(raise[A](e))(monad.pure)
+
+  def fromEither[A](ea: Either[E, A])(implicit sp: SourcePos): F[A] =
+    ea.fold(raise[A], monad.pure)
+
+  def fromValidated[A](ve: Validated[E, A])(implicit sp: SourcePos): F[A] =
+    ve.fold(raise[A], monad.pure)
+
+  def fromEitherT[A](e: EitherT[F, E, A])(implicit sp: SourcePos): F[A] =
+    monad.flatMap(e.value)(fromEither)
 
   def contramap[E2](f: E2 => E): Raise[F, E2] = new Raise[F, E2] {
     def monad = self.monad
@@ -68,6 +76,11 @@ trait Handle[F[_], E] extends Raise[F, E] {
     new (F ~> EitherT[F, E, *]) {
       def apply[A](fa: F[A]): EitherT[F, E, A] = EitherT(attempt(fa))
     }
+
+  def parGather[G[_]: Traverse, A](fas: G[F[A]])(implicit sp: SourcePos, S: Semigroup[E]): F[G[A]] = {
+    implicit val M = monad
+    fas.traverse(fa => attempt(fa)).map(_.parSequence) >>= fromEither
+  }
 }
 
 object Handle {

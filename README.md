@@ -92,6 +92,43 @@ Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO])
 
 Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
 
+`Handle`'s API can also facilitate parallel gathering of errors.
+```scala
+trait CreateUserError
+case object InvalidEmail extends CreateUserError
+case object InvalidPassword extends CreateUserError
+def createUser[F[_]: Console: Sync](idx: Int)(R: Raise[F, CreateUserError]): F[Unit] = 
+  for {
+    _ <- R.raiseIf(InvalidEmail)(idx % 2 == 0)
+    _ <- R.raiseIf(InvalidPassword)(true)
+    _ <- Console[F].println(s"Created user!")
+  } yield ()
+
+def createUserBatch[F[_]: Console: Sync: Catch]: F[Unit] =
+  Catch[F].use[List[CreateUserError]]{ implicit H => 
+    H.parGather((0 to 10).toList.map(createUser[F](_)(H.contramap[CreateUserError](List(_)))))
+  }.flatMap{
+    case Left(errors) => Console[F].println(s"Errors: ${errors.map(x => "\n// " + x.toString()).mkString("")}")
+    case Right(_) => Console[F].println("Success!")
+  }
+```
+Running the program yields:
+```scala
+Catch.ioCatch.flatMap(implicit C => createUserBatch[IO])
+// Errors: 
+// InvalidEmail
+// InvalidPassword
+// InvalidEmail
+// InvalidPassword
+// InvalidEmail
+// InvalidPassword
+// InvalidEmail
+// InvalidPassword
+// InvalidEmail
+// InvalidPassword
+// InvalidEmail
+```
+
 ### Other ways of constructing Catch
 1. Catch can occur an instance of `Handle[F, Vault]` (or `EitherT[F, Vault, A]`)
 2. Catch can occur for an instance of `Local[F, Vault]` (or `Kleisli[F, Vault, A]`) and `Concurrent[F]` via cancellation
@@ -128,17 +165,17 @@ Running the Catch example:
 ```scala
 Catch.ioCatch.flatMap(catchError)
 // catcheffect.Catch$RaisedWithoutHandler: I think you might have a resource leak.
-// You are trying to raise at README.md:163,
+// You are trying to raise at README.md:201,
 // but this operation occured outside of the scope of the handler.
 // Either widen the scope of your handler or don't leak the algebra.
-// The handler was defined at README.md:162
+// The handler was defined at README.md:200
 ```
 And then then Context example:
 ```scala
 Context.ioContext.flatMap(contextError)
 // catcheffect.Context$NoHandlerInScope: A Local operator was invoked outside of it's handler.
-// The Local operator was invoked at README.md:169.
-// The handler for this Local instance was defined at README.md:168.
+// The Local operator was invoked at README.md:207.
+// The handler for this Local instance was defined at README.md:206.
 // 
 // You may have leaked the Local algebra by accident.
 // This can be casued by functions of similar form as the following.
