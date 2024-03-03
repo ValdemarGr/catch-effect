@@ -87,7 +87,7 @@ Context.local[IO]
 ```
 
 ## Catch
-`Catch` responsible for throwing and catching errors.
+`Catch` is responsible for throwing and catching errors.
 The MTL counterpart of `Catch` is `EitherT`.
 `Catch` can introduce new ad-hoc error channels that are independent of eachother.
 There are various ways to construct a catch, but the simplest (given that you're working in `cats-effect`) is the following.
