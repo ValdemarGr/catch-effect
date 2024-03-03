@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Valdemar Grange
+ * Copyright 2024 Valdemar Grange
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,12 @@ trait Ask[F[_], C] {
   def applicative: Applicative[F]
 
   def ask(implicit sp: SourcePos): F[C]
+
+  def map[B](f: C => B)(implicit F: Functor[F]): Ask[F, B] =
+    new Ask[F, B] {
+      override def applicative: Applicative[F] = Ask.this.applicative
+      override def ask(implicit sp: SourcePos): F[B] = F.map(Ask.this.ask)(f)
+    }
 }
 
 object Ask {
@@ -41,6 +47,23 @@ object Ask {
       override def applicative: Applicative[Kleisli[F, C, *]] = implicitly
       override def ask(implicit sp: SourcePos): Kleisli[F, C, C] = Kleisli.ask[F, C]
     }
+
+  implicit def monadForAsk[F[_]](implicit F: Monad[F]): Monad[Ask[F, *]] = new Monad[Ask[F, *]] {
+    override def flatMap[A, B](fa: Ask[F, A])(f: A => Ask[F, B]): Ask[F, B] =
+      new Ask[F, B] {
+        def applicative: Applicative[F] = fa.applicative
+        def ask(implicit sp: SourcePos): F[B] =
+          fa.ask.flatMap(a => f(a).ask)
+      }
+
+    override def tailRecM[A, B](a: A)(f: A => Ask[F, Either[A, B]]): Ask[F, B] =
+      new Ask[F, B] {
+        def applicative: Applicative[F] = F
+        def ask(implicit sp: SourcePos): F[B] = F.tailRecM(a)(a => f(a).ask)
+      }
+
+    override def pure[A](x: A): Ask[F, A] = const(x)
+  }
 }
 
 trait Local[F[_], C] extends Ask[F, C] {

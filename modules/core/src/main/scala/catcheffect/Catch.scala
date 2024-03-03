@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Valdemar Grange
+ * Copyright 2024 Valdemar Grange
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,6 +47,12 @@ trait Raise[F[_], E] { self =>
     def monad = self.monad
     override def raise[A](e: E2)(implicit sp: SourcePos): F[A] =
       self.raise(f(e))
+  }
+
+  def mapK[G[_]](fk: F ~> G)(implicit G: Monad[G]): Raise[G, E] = new Raise[G, E] {
+    def monad = G
+    override def raise[A](e: E)(implicit sp: SourcePos): G[A] =
+      fk(self.raise(e))
   }
 }
 

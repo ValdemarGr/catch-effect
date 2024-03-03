@@ -12,7 +12,7 @@ ThisBuild / licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses
 ThisBuild / developers := List(
   Developer("valdemargr", "Valdemar Grange", "randomvald0069@gmail.com", url("https://github.com/valdemargr"))
 )
-ThisBuild / headerLicense := Some(HeaderLicense.Custom("Copyright (c) 2023 Valdemar Grange"))
+ThisBuild / headerLicense := Some(HeaderLicense.Custom("Copyright (c) 2024 Valdemar Grange"))
 ThisBuild / headerEmptyLine := false
 
 lazy val sharedSettings = Seq(
