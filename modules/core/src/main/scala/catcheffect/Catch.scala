@@ -79,24 +79,24 @@ trait Handle[F[_], E] extends Raise[F, E] {
     }
 
   def accumulatingApplicativeForParallel(implicit P: Parallel[F], S: Semigroup[E]): Parallel.Aux[F, F] = {
-    implicit val M = monad
+    implicit val M: Monad[F] = monad
     Handle.accumulatingParallel(this)
   }
 
   def accumulatingApplicativeForApplicative(implicit S: Semigroup[E]): Parallel.Aux[F, F] = {
-    implicit val M = monad
-    implicit val P = Parallel.identity[F]
+    implicit val M: Monad[F] = monad
+    implicit val P: Parallel.Aux[F, F] = Parallel.identity[F]
     Handle.accumulatingParallel(this)
   }
 
   def accumulatingParallelForParallel(implicit P: Parallel[F], S: Semigroup[E]): Parallel.Aux[F, F] = {
-    implicit val M = monad
+    implicit val M: Monad[F] = monad
     Handle.accumulatingParallel(this)
   }
 
   def accumulatingParallelForApplicative(implicit S: Semigroup[E]): Parallel.Aux[F, F] = {
-    implicit val M = monad
-    implicit val P = Parallel.identity[F]
+    implicit val M: Monad[F] = monad
+    implicit val P: Parallel.Aux[F, F] = Parallel.identity[F]
     Handle.accumulatingParallel(this)
   }
 }
