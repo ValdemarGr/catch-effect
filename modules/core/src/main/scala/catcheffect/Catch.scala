@@ -81,6 +81,11 @@ trait Handle[F[_], E] extends Raise[F, E] {
     implicit val M = monad
     fas.traverse(fa => attempt(fa)).map(_.parSequence) >>= fromEither
   }
+
+  def parGatherK[G[_]: Traverse](implicit sp: SourcePos, S: Semigroup[E]): λ[A => G[F[A]]] ~> λ[A => F[G[A]]] =
+    new (λ[A => G[F[A]]] ~> λ[A => F[G[A]]]) {
+      def apply[A](fas: G[F[A]]): F[G[A]] = parGather(fas)
+    }
 }
 
 object Handle {
