@@ -21,6 +21,7 @@ import cats.implicits._
 import org.tpolecat.sourcepos._
 import org.typelevel.vault._
 import cats.data._
+import cats.arrow.FunctionK
 
 trait Raise[F[_], E] { self =>
   def monad: Monad[F]
@@ -77,15 +78,27 @@ trait Handle[F[_], E] extends Raise[F, E] {
       def apply[A](fa: F[A]): EitherT[F, E, A] = EitherT(attempt(fa))
     }
 
-  def parGather[G[_]: Traverse, A](fas: G[F[A]])(implicit sp: SourcePos, S: Semigroup[E]): F[G[A]] = {
+  def accumulatingApplicativeForParallel(implicit P: Parallel[F], S: Semigroup[E]): Parallel.Aux[F, F] = {
     implicit val M = monad
-    fas.traverse(fa => attempt(fa)).map(_.parSequence) >>= fromEither
+    Handle.accumulatingParallel(this)
   }
 
-  def parGatherK[G[_]: Traverse](implicit sp: SourcePos, S: Semigroup[E]): λ[A => G[F[A]]] ~> λ[A => F[G[A]]] =
-    new (λ[A => G[F[A]]] ~> λ[A => F[G[A]]]) {
-      def apply[A](fas: G[F[A]]): F[G[A]] = parGather(fas)
-    }
+  def accumulatingApplicativeForApplicative(implicit S: Semigroup[E]): Parallel.Aux[F, F] = {
+    implicit val M = monad
+    implicit val P = Parallel.identity[F]
+    Handle.accumulatingParallel(this)
+  }
+
+  def accumulatingParallelForParallel(implicit P: Parallel[F], S: Semigroup[E]): Parallel.Aux[F, F] = {
+    implicit val M = monad
+    Handle.accumulatingParallel(this)
+  }
+
+  def accumulatingParallelForApplicative(implicit S: Semigroup[E]): Parallel.Aux[F, F] = {
+    implicit val M = monad
+    implicit val P = Parallel.identity[F]
+    Handle.accumulatingParallel(this)
+  }
 }
 
 object Handle {
@@ -99,6 +112,24 @@ object Handle {
           f: E => EitherT[F, E, A]
       )(implicit sp: SourcePos): EitherT[F, E, A] =
         fa.handleErrorWith(f)
+    }
+
+  def accumulatingParallel[F[_]: Monad: Parallel, E: Semigroup](H: Handle[F, E]): Parallel.Aux[F, F] = {
+    type G[A] = F[A]
+    new Parallel[F] {
+      type F[A] = G[A]
+      override def sequential: FunctionK[F, F] = FunctionK.id
+      override def parallel: FunctionK[F, F] = FunctionK.id
+      override def applicative: Applicative[F] = accumulatingApplicative(H)
+      override def monad: Monad[F] = Parallel[F].monad
+    }
+  }
+
+  def accumulatingApplicative[F[_]: Monad: Parallel, E: Semigroup](H: Handle[F, E]): Applicative[F] =
+    new Applicative[F] {
+      override def ap[A, B](ff: F[A => B])(fa: F[A]): F[B] =
+        (H.attempt(ff), H.attempt(fa)).parMapN(_ <&> _) >>= H.fromEither
+      override def pure[A](x: A): F[A] = Monad[F].pure(x)
     }
 }
 

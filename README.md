@@ -7,7 +7,7 @@ Catch effect is built on top of [Vault](https://github.com/typelevel/vault), whi
 
 ## Context
 Context can create instances of `Local`, that represent running an effect given some input.
-The monad transformer counterpart of `Context` is `Kleisli`/`ReaderT`.
+The MTL counterpart of `Context` is `Kleisli`/`ReaderT`.
 
 If you are using `cats-effect` and you are familiar with `IOLocal`, then Context is very similar (and can be constructed on top of it).
 However, `Context` allows spawning new ad-hoc `Local` instances for any effect type `F`, and not just `IO`.
@@ -59,7 +59,7 @@ Context.local[IO]
 
 ## Catch
 `Catch` is responsible for throwing and catching errors.
-The monad transformer counterpart of `Catch` is `EitherT`.
+The MTL counterpart of `Catch` is `EitherT`.
 `Catch` can introduce new ad-hoc error channels that are independent of eachother.
 There are various ways to construct a catch, but the simplest (given that you're working in `cats-effect`) is the following.
 ```scala
@@ -92,7 +92,7 @@ Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO])
 
 Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
 
-`Handle`'s API can also facilitate parallel gathering of errors.
+`Handle`'s API can also facilitate parallel gathering of errors, like `EitherT`'s `Parallel` instance.
 ```scala
 trait CreateUserError
 case object InvalidEmail extends CreateUserError
@@ -106,7 +106,9 @@ def createUser[F[_]: Console: Sync](idx: Int)(R: Raise[F, CreateUserError]): F[U
 
 def createUserBatch[F[_]: Console: Sync: Catch]: F[Unit] =
   Catch[F].use[List[CreateUserError]]{ implicit H => 
-    H.parGather((0 to 10).toList.map(createUser[F](_)(H.contramap[CreateUserError](List(_)))))
+    val one = H.contramap[CreateUserError](List(_))
+    implicit val P: Parallel[F] = H.accumulatingParallelForApplicative
+    (0 to 10).toList.parTraverse(createUser[F](_)(one))
   }.flatMap{
     case Left(errors) => Console[F].println(s"Errors: ${errors.map(x => "\n// " + x.toString()).mkString("")}")
     case Right(_) => Console[F].println("Success!")
@@ -165,17 +167,17 @@ Running the Catch example:
 ```scala
 Catch.ioCatch.flatMap(catchError)
 // catcheffect.Catch$RaisedWithoutHandler: I think you might have a resource leak.
-// You are trying to raise at README.md:201,
+// You are trying to raise at README.md:203,
 // but this operation occured outside of the scope of the handler.
 // Either widen the scope of your handler or don't leak the algebra.
-// The handler was defined at README.md:200
+// The handler was defined at README.md:202
 ```
 And then then Context example:
 ```scala
 Context.ioContext.flatMap(contextError)
 // catcheffect.Context$NoHandlerInScope: A Local operator was invoked outside of it's handler.
-// The Local operator was invoked at README.md:207.
-// The handler for this Local instance was defined at README.md:206.
+// The Local operator was invoked at README.md:209.
+// The handler for this Local instance was defined at README.md:208.
 // 
 // You may have leaked the Local algebra by accident.
 // This can be casued by functions of similar form as the following.

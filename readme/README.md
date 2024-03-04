@@ -122,7 +122,7 @@ ioPrint(Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO]))(
 
 Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
 
-`Handle`'s API can also facilitate parallel gathering of errors.
+`Handle`'s API can also facilitate parallel gathering of errors, like `EitherT`'s `Parallel` instance.
 ```scala mdoc:nest
 trait CreateUserError
 case object InvalidEmail extends CreateUserError
@@ -136,7 +136,9 @@ def createUser[F[_]: Console: Sync](idx: Int)(R: Raise[F, CreateUserError]): F[U
 
 def createUserBatch[F[_]: Console: Sync: Catch]: F[Unit] =
   Catch[F].use[List[CreateUserError]]{ implicit H => 
-    H.parGather((0 to 10).toList.map(createUser[F](_)(H.contramap[CreateUserError](List(_)))))
+    val one = H.contramap[CreateUserError](List(_))
+    implicit val P: Parallel[F] = H.accumulatingParallelForApplicative
+    (0 to 10).toList.parTraverse(createUser[F](_)(one))
   }.flatMap{
     case Left(errors) => Console[F].println(s"Errors: ${errors.map(x => "\n// " + x.toString()).mkString("")}")
     case Right(_) => Console[F].println("Success!")
