@@ -78,17 +78,6 @@ trait Handle[F[_], E] extends Raise[F, E] {
       def apply[A](fa: F[A]): EitherT[F, E, A] = EitherT(attempt(fa))
     }
 
-  def accumulatingApplicativeForParallel(implicit P: Parallel[F], S: Semigroup[E]): Parallel.Aux[F, F] = {
-    implicit val M: Monad[F] = monad
-    Handle.accumulatingParallel(this)
-  }
-
-  def accumulatingApplicativeForApplicative(implicit S: Semigroup[E]): Parallel.Aux[F, F] = {
-    implicit val M: Monad[F] = monad
-    implicit val P: Parallel.Aux[F, F] = Parallel.identity[F]
-    Handle.accumulatingParallel(this)
-  }
-
   def accumulatingParallelForParallel(implicit P: Parallel[F], S: Semigroup[E]): Parallel.Aux[F, F] = {
     implicit val M: Monad[F] = monad
     Handle.accumulatingParallel(this)
