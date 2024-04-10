@@ -5,6 +5,11 @@ A small set of structures are introduced that allow construction of algebras aki
 
 Catch effect is built on top of [Vault](https://github.com/typelevel/vault), which is a map that can hold values of different types.
 
+## Installation
+```scala
+"io.github.valdemargr" %% "catch-effect" % "0.1.1"
+```
+
 ## Context
 Context can create instances of `Local`, that represent running an effect given some input.
 The MTL counterpart of `Context` is `Kleisli`/`ReaderT`.
