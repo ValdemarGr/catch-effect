@@ -20,7 +20,7 @@ import cats.implicits._
 import munit.CatsEffectSuite
 
 class CatchTest extends CatsEffectSuite {
-  val C = Catch.ioCatch.unsafeRunSync()
+  val C = Catch.catchForIO.unsafeRunSync()
 
   test("should be able to throw, catch and re-throw") {
     val program = C.use[String] { hs =>
