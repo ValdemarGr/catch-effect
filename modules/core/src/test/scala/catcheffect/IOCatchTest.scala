@@ -1,7 +1,6 @@
 package catcheffect
 
 import catcheffect.Catch.RaisedWithoutHandler
-import catcheffect.IOCatch.ioCatching
 import cats.effect.*
 import munit.CatsEffectSuite
 
@@ -9,7 +8,7 @@ class IOCatchTest extends CatsEffectSuite {
   test("should abort execution as soon as raise is called") {
     for {
       ref <- Ref[IO].of("init")
-      res <- ioCatching[String](h =>
+      res <- IOCatch[String](h =>
         for {
           _ <- h.raise("error")
           _ <- ref.set("should not be set")
@@ -22,9 +21,9 @@ class IOCatchTest extends CatsEffectSuite {
   
   test("can nest correctly") {
     for {
-      res <- ioCatching[String](hs1 =>
+      res <- IOCatch[String](hs1 =>
         for {
-          _ <- ioCatching[String](hs2 =>
+          _ <- IOCatch[String](hs2 =>
             hs1.raise("1")
           )
           _ <- IO.raiseError(new AssertionError("should not reach this point"))
@@ -36,7 +35,7 @@ class IOCatchTest extends CatsEffectSuite {
   
   test("Can raise in an uncancellable region") {
     for {
-      res <- ioCatching[String](h =>
+      res <- IOCatch[String](h =>
         IO.uncancelable(_ => h.raise("oops"))
       )
       _ = assertEquals(res, Left("oops"))
@@ -45,7 +44,7 @@ class IOCatchTest extends CatsEffectSuite {
 
   test("Can raise in an cancellable region when polled") {
     for {
-      res <- ioCatching[String](h =>
+      res <- IOCatch[String](h =>
         IO.uncancelable(poll => poll(h.raise("oops")))
       )
       _ = assertEquals(res, Left("oops"))
@@ -55,7 +54,7 @@ class IOCatchTest extends CatsEffectSuite {
   test("Fail to raise if the Raise instance is used outside of its original fiber") {
     (for {
       cached <- Deferred[IO, Raise[IO, String]]
-      res <- ioCatching[String](h =>
+      res <- IOCatch[String](h =>
         cached.complete(h).void
       )
       _ = assertEquals(res, Right(()))

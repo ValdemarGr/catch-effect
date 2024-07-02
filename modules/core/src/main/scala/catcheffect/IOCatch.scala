@@ -1,16 +1,16 @@
 package catcheffect
 
-import Catch.catchForIO
+import Catch.ioCatch
 import cats.effect.*
 
 object IOCatch {
   
-  def ioCatching[E]: IOCatchPartiallyApplied[E] =
+  def apply[E]: IOCatchPartiallyApplied[E] =
     new IOCatchPartiallyApplied[E]
   
   class IOCatchPartiallyApplied[E] {
     def apply[A](f: Handle[IO, E] => IO[A]): IO[Either[E, A]] = {
-      catchForIO.flatMap { c =>
+      ioCatch.flatMap { c =>
         c.use[E](f)
       }
     }

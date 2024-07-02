@@ -222,7 +222,7 @@ object Catch {
           |The handler was defined at $alloc""".stripMargin
   }
 
-  val catchForIO: IO[Catch[IO]] =
+  val ioCatch: IO[Catch[IO]] =
     LocalForIOLocal
       .localForIOLocalDefault(Vault.empty)
       .map(implicit loc => fromLocal[IO])
