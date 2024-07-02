@@ -1,6 +1,6 @@
 package catcheffect
 
-import catcheffect.Catch.RaisedWithoutHandler
+import catcheffect.Catch.{RaisedInUncancellable, RaisedWithoutHandler}
 import cats.effect.*
 import munit.CatsEffectSuite
 
@@ -33,13 +33,20 @@ class IOCatchTest extends CatsEffectSuite {
     } yield res
   }
   
-  test("Can raise in an uncancellable region") {
-    for {
+  test("Raising in an uncancellable region may correctly raise the error or throw RaisedInUncancellable") {
+    // There's a small race condition where cancellation from outside will win against the IO.cancel call, 
+    // therefore RaisedInUncancellable isn't thrown. Unfortunately it doesn't seem like we can detect
+    // whether the current scope is cancellable without actually triggering cancellation
+    (for {
       res <- IOCatch[String](h =>
-        IO.uncancelable(_ => h.raise("oops"))
+        IO.uncancelable(_ => h.raise("oops").void)
       )
-      _ = assertEquals(res, Left("oops"))
-    } yield ()
+      // If it did raise error instead of throwing RaisedInUncancellable, at least make sure it's raised correctly
+      _ = assertEquals(res, Left("oops")) 
+    } yield ()).recoverWith {
+      case _: RaisedInUncancellable[_] => IO.unit // succeed
+      case e => IO.raiseError(e)
+    }
   }
 
   test("Can raise in an cancellable region when polled") {
