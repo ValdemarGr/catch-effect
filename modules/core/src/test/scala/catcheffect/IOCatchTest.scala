@@ -25,7 +25,7 @@ class IOCatchTest extends CatsEffectSuite {
       ref <- Ref[IO].of("init")
       res <- IOCatch[String](h =>
         for {
-          _ <- h.raise("error")
+          _ <- h.raise("error").void
           _ <- ref.set("should not be set")
         } yield 1
       )
@@ -38,8 +38,8 @@ class IOCatchTest extends CatsEffectSuite {
     for {
       res <- IOCatch[String](hs1 =>
         for {
-          _ <- IOCatch[String](hs2 => hs1.raise("1"))
-          _ <- IO.raiseError(new AssertionError("should not reach this point"))
+          _ <- IOCatch[String](_ => hs1.raise("1"))
+          _ <- IO.raiseError(new AssertionError("should not reach this point")).void
         } yield ()
       )
       _ = assertEquals(res, Left("1"))
@@ -72,7 +72,7 @@ class IOCatchTest extends CatsEffectSuite {
       cached <- Deferred[IO, Raise[IO, String]]
       res <- IOCatch[String](h => cached.complete(h).void)
       _ = assertEquals(res, Right(()))
-      _ <- cached.get.flatMap(_.raise("hm"))
+      _ <- cached.get.flatMap(_.raise("hm")).void
     } yield ()).attempt.map {
       case Left(_: RaisedWithoutHandler[_]) => () // succeed
       case other                            => fail(s"Expected RaisedWithoutHandler, got $other")
