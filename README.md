@@ -74,7 +74,7 @@ Catch.ioCatch: IO[Catch[IO]]
 
 ### Example in `IO`
 If you work in `IO`, the usage of `Catch` becomes simpler.
-`IOCatch` provides a utility to immediately summon a `Handle` instance.
+`IOCatch` provides a utility to immediately create a `Handle` instance.
 ```scala
 sealed trait UserError
 case object WeakPassword extends UserError
