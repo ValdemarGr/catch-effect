@@ -5,11 +5,17 @@ A small set of structures are introduced that allow construction of algebras aki
 
 Catch effect is built on top of [Vault](https://github.com/typelevel/vault), which is a map that can hold values of different types.
 
+## Installation
+```scala
+"io.github.valdemargr" %% "catch-effect" % "@VERSION@"
+```
+
 ## Context
 Context can create instances of `Local`, that represent running an effect given some input.
 The MTL counterpart of `Context` is `Kleisli`/`ReaderT`.
+`Context` is a building block for the more interesting `Catch` sturcture described below.
 
-If you are using `cats-effect` and you are familiar with `IOLocal`, then Context is very similar (and can be constructed on top of it).
+If you are using `cats-effect` and you are familiar with `IOLocal`, then Context should be familiar (and can be constructed on top of it).
 However, `Context` allows spawning new ad-hoc `Local` instances for any effect type `F`, and not just `IO`.
 
 You can construct an instance of `Context` in various ways, here is one using `cats-effect`.
@@ -51,31 +57,31 @@ implicit lazy val munitConsoleInstance: Console[IO] = new Console[IO] {
 ```
 ```scala mdoc
 type Auth = String
-def authorizedRoute[F[_]: Console: Sync](L: Local[F, Auth]): F[Unit] = 
+def authorizedRoute(L: Local[IO, Auth]): IO[Unit] = 
   for {
     user <- L.ask
-    _ <- Console[F].println(s"doing user op with $user")
+    _ <- Console[IO].println(s"doing user op with $user")
     _ <- L.local{
       L.ask.flatMap{ user =>
-        Console[F].println(s"doing admin operation with $user")
+        Console[IO].println(s"doing admin operation with $user")
       }
     }(_ => "admin")
     user <- L.ask
-    _ <- Console[F].println(s"doing user op with $user again")
+    _ <- Console[IO].println(s"doing user op with $user again")
   } yield ()
 
-def run[F[_]: Sync: Context: Console]: F[Unit] = 
-  Context[F].use("user")(authorizedRoute[F])
+def run(C: Context[IO]): IO[Unit] = 
+  C.use("user")(authorizedRoute)
 ```
 Running the program yields:
 ```scala mdoc:passthrough
-ioPrint(Context.ioContext.flatMap(implicit C => run[IO]))(
-  "Context.ioContext.flatMap(implicit C => run[IO])"
+ioPrint(Context.ioContext.flatMap(C => run(C)))(
+  "Context.ioContext.flatMap(C => run(C))"
 )
 ```
 
 ### Other ways of constructing Context
-There are several other ways to construct `Context` than to use `IO`.
+There are several other ways to construct `Context` in the case that you don't `IO`.
 If you are working in `Kleisli` a natural implementation exists.
 ```scala mdoc:silent
 Context.kleisli[IO]: Context[Kleisli[IO, Vault, *]]
@@ -95,7 +101,33 @@ There are various ways to construct a catch, but the simplest (given that you're
 Catch.ioCatch: IO[Catch[IO]]
 ```
 
-### Example
+### Example in `IO`
+If you work in `IO`, the usage of `Catch` becomes simpler.
+`IOCatch` provides a utility to immediately summon a `Handle` instance.
+```scala mdoc
+sealed trait UserError
+case object WeakPassword extends UserError
+def verifyUser(password: String)(R: Raise[IO, UserError]): IO[Unit] =
+  for {
+    _ <- Console[IO].println("verifying user")
+    _ <- R.raiseIf(WeakPassword)(password.length < 8)
+    _ <- Console[IO].println("user verified")
+  } yield ()
+```
+Running the program yields:
+```scala mdoc:passthrough
+ioPrint((
+  IOCatch[UserError](verifyUser("pass")(_)),
+  IOCatch[UserError](verifyUser("supersafepassword123")(_))
+).tupled)(
+  """(
+  IOCatch[UserError](verifyUser("pass")(_)),
+  IOCatch[UserError](verifyUser("supersafepassword123")(_))
+).tupled"""
+)
+```
+
+### Example for any effect
 With an instance of `Catch` in scope, you can create locally scoped domain-specific errors.
 ```scala mdoc
 sealed trait DomainError
@@ -149,6 +181,15 @@ Running the program yields:
 ioPrint(Catch.ioCatch.flatMap(implicit C => createUserBatch[IO]))(
   "Catch.ioCatch.flatMap(implicit C => createUserBatch[IO])"
 )
+```
+
+### Incorrect usage of Catch
+`Catch` builds uppon cancellation of effects.
+As such, any invocation of `raise` (or it's other variants) must not occur in an `uncancelable` block.
+This is usually not an issue for most (if not all) applications, but must be respected regardless.
+```scala
+// Raise cannot cancel itself when in an uncancelable block
+IOCatch[String](r => IO.uncancelable(_ => r.raise("error")))
 ```
 
 ### Other ways of constructing Catch

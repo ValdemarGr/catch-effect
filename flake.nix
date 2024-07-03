@@ -17,9 +17,7 @@
       nativeBuildInputs = [ 
         pkgs.jdk11
         pkgs.scalafmt
-        pkgs.zsh
         pkgs.sbt
-        pkgs.graalvm-ce
       ];
     };
   };

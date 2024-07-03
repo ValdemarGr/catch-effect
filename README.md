@@ -7,14 +7,15 @@ Catch effect is built on top of [Vault](https://github.com/typelevel/vault), whi
 
 ## Installation
 ```scala
-"io.github.valdemargr" %% "catch-effect" % "0.1.1"
+"io.github.valdemargr" %% "catch-effect" % "0.1.2"
 ```
 
 ## Context
 Context can create instances of `Local`, that represent running an effect given some input.
 The MTL counterpart of `Context` is `Kleisli`/`ReaderT`.
+`Context` is a building block for the more interesting `Catch` sturcture described below.
 
-If you are using `cats-effect` and you are familiar with `IOLocal`, then Context is very similar (and can be constructed on top of it).
+If you are using `cats-effect` and you are familiar with `IOLocal`, then Context should be familiar (and can be constructed on top of it).
 However, `Context` allows spawning new ad-hoc `Local` instances for any effect type `F`, and not just `IO`.
 
 You can construct an instance of `Context` in various ways, here is one using `cats-effect`.
@@ -26,32 +27,32 @@ Context.ioContext: IO[Context[IO]]
 When you have an instance of `Context` in scope, new `Local` instances can be spawned.
 ```scala
 type Auth = String
-def authorizedRoute[F[_]: Console: Sync](L: Local[F, Auth]): F[Unit] = 
+def authorizedRoute(L: Local[IO, Auth]): IO[Unit] = 
   for {
     user <- L.ask
-    _ <- Console[F].println(s"doing user op with $user")
+    _ <- Console[IO].println(s"doing user op with $user")
     _ <- L.local{
       L.ask.flatMap{ user =>
-        Console[F].println(s"doing admin operation with $user")
+        Console[IO].println(s"doing admin operation with $user")
       }
     }(_ => "admin")
     user <- L.ask
-    _ <- Console[F].println(s"doing user op with $user again")
+    _ <- Console[IO].println(s"doing user op with $user again")
   } yield ()
 
-def run[F[_]: Sync: Context: Console]: F[Unit] = 
-  Context[F].use("user")(authorizedRoute[F])
+def run(C: Context[IO]): IO[Unit] = 
+  C.use("user")(authorizedRoute)
 ```
 Running the program yields:
 ```scala
-Context.ioContext.flatMap(implicit C => run[IO])
+Context.ioContext.flatMap(C => run(C))
 // doing user op with user
 // doing admin operation with admin
 // doing user op with user again
 ```
 
 ### Other ways of constructing Context
-There are several other ways to construct `Context` than to use `IO`.
+There are several other ways to construct `Context` in the case that you don't `IO`.
 If you are working in `Kleisli` a natural implementation exists.
 ```scala
 Context.kleisli[IO]: Context[Kleisli[IO, Vault, *]]
@@ -71,7 +72,32 @@ There are various ways to construct a catch, but the simplest (given that you're
 Catch.ioCatch: IO[Catch[IO]]
 ```
 
-### Example
+### Example in `IO`
+If you work in `IO`, the usage of `Catch` becomes simpler.
+`IOCatch` provides a utility to immediately summon a `Handle` instance.
+```scala
+sealed trait UserError
+case object WeakPassword extends UserError
+def verifyUser(password: String)(R: Raise[IO, UserError]): IO[Unit] =
+  for {
+    _ <- Console[IO].println("verifying user")
+    _ <- R.raiseIf(WeakPassword)(password.length < 8)
+    _ <- Console[IO].println("user verified")
+  } yield ()
+```
+Running the program yields:
+```scala
+(
+  IOCatch[UserError](verifyUser("pass")(_)),
+  IOCatch[UserError](verifyUser("supersafepassword123")(_))
+).tupled
+// verifying user
+// verifying user
+// user verified
+// (Left(WeakPassword),Right(()))
+```
+
+### Example for any effect
 With an instance of `Catch` in scope, you can create locally scoped domain-specific errors.
 ```scala
 sealed trait DomainError
@@ -136,6 +162,15 @@ Catch.ioCatch.flatMap(implicit C => createUserBatch[IO])
 // InvalidEmail
 ```
 
+### Incorrect usage of Catch
+`Catch` builds uppon cancellation of effects.
+As such, any invocation of `raise` (or it's other variants) must not occur in an `uncancelable` block.
+This is usually not an issue for most (if not all) applications, but must be respected regardless.
+```scala
+// Raise cannot cancel itself when in an uncancelable block
+IOCatch[String](r => IO.uncancelable(_ => r.raise("error")))
+```
+
 ### Other ways of constructing Catch
 1. Catch can occur an instance of `Handle[F, Vault]` (or `EitherT[F, Vault, A]`)
 2. Catch can occur for an instance of `Local[F, Vault]` (or `Kleisli[F, Vault, A]`) and `Concurrent[F]` via cancellation
@@ -172,17 +207,17 @@ Running the Catch example:
 ```scala
 Catch.ioCatch.flatMap(catchError)
 // catcheffect.Catch$RaisedWithoutHandler: I think you might have a resource leak.
-// You are trying to raise at README.md:203,
+// You are trying to raise at README.md:234,
 // but this operation occured outside of the scope of the handler.
 // Either widen the scope of your handler or don't leak the algebra.
-// The handler was defined at README.md:202
+// The handler was defined at README.md:233
 ```
 And then then Context example:
 ```scala
 Context.ioContext.flatMap(contextError)
 // catcheffect.Context$NoHandlerInScope: A Local operator was invoked outside of it's handler.
-// The Local operator was invoked at README.md:209.
-// The handler for this Local instance was defined at README.md:208.
+// The Local operator was invoked at README.md:240.
+// The handler for this Local instance was defined at README.md:239.
 // 
 // You may have leaked the Local algebra by accident.
 // This can be casued by functions of similar form as the following.
