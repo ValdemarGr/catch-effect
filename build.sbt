@@ -13,12 +13,14 @@ ThisBuild / mimaReportSignatureProblems := false
 ThisBuild / mimaFailOnProblem := false
 ThisBuild / mimaPreviousArtifacts := Set.empty
 
-ThisBuild / licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
+ThisBuild / licenses := Seq(License.Apache2)
 ThisBuild / developers := List(
   Developer("valdemargr", "Valdemar Grange", "randomvald0069@gmail.com", url("https://github.com/valdemargr"))
 )
 ThisBuild / headerLicense := Some(HeaderLicense.Custom("Copyright (c) 2024 Valdemar Grange"))
 ThisBuild / headerEmptyLine := false
+
+ThisBuild / startYear := Some(2024)
 
 lazy val sharedSettings = Seq(
   organization := "io.github.valdemargr",
