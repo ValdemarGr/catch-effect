@@ -1,7 +1,5 @@
 # Catch effect <a href="https://typelevel.org/cats/"><img src="https://typelevel.org/cats/img/cats-badge.svg" height="40px" align="right" alt="Cats friendly" /></a>
-Catch effect is a small library for piling effectful algebras on top of eachother.
-
-A small set of structures are introduced that allow construction of algebras akin to MTL, but without monad transformers and lifting effects.
+Catch effect is a small library that facilitates MTL-like programs, without the need for monad transformers, but just an effect type like `IO`.
 
 Catch effect is built on top of [Vault](https://github.com/typelevel/vault), which is a map that can hold values of different types.
 
@@ -11,12 +9,13 @@ Catch effect is built on top of [Vault](https://github.com/typelevel/vault), whi
 ```
 
 ## Context
-Context can create instances of `Local`, that represent running an effect given some input.
-The MTL counterpart of `Context` is `Kleisli`/`ReaderT`.
+Context can create instances of `Local`.
+`Local` provides the ability to run an effect given some input and modify the input.
+
+The MTL counterpart of `Context` is `Kleisli`/`ReaderT`, (`A => F[B]` for the uninitiated).
 `Context` is a building block for the more interesting `Catch` sturcture described below.
 
-If you are using `cats-effect` and you are familiar with `IOLocal`, then Context should be familiar (and can be constructed on top of it).
-However, `Context` allows spawning new ad-hoc `Local` instances for any effect type `F`, and not just `IO`.
+If you are using `cats-effect` and you are familiar with `IOLocal`, then `Context` should be feel familiar.
 
 You can construct an instance of `Context` in various ways, here is one using `cats-effect`.
 ```scala
@@ -24,7 +23,7 @@ Context.ioContext: IO[Context[IO]]
 ```
 
 ### Example
-When you have an instance of `Context` in scope, new `Local` instances can be spawned.
+When you have an instance of `Context` in scope, new `Local` instances can be spawned on the fly.
 ```scala
 type Auth = String
 def authorizedRoute(L: Local[IO, Auth]): IO[Unit] = 
@@ -52,8 +51,8 @@ Context.ioContext.flatMap(C => run(C))
 ```
 
 ### Other ways of constructing Context
-There are several other ways to construct `Context` in the case that you don't `IO`.
-If you are working in `Kleisli` a natural implementation exists.
+There are several other ways to construct `Context` in the case that you are not working in `IO`.
+For instance, if you are working in `Kleisli` a natural implementation exists.
 ```scala
 Context.kleisli[IO]: Context[Kleisli[IO, Vault, *]]
 ```
@@ -121,7 +120,7 @@ Catch.ioCatch.flatMap(implicit C => doDomainEffect[IO])
 // Missing data!
 ```
 
-Nested `Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
+`Catch`, `Raise` and `Handle` instances are well behaved when nested and can raise errors on their completely isolated error channels.
 
 `Handle`'s API can also facilitate parallel gathering of errors, like `EitherT`'s `Parallel` instance.
 ```scala
@@ -172,10 +171,10 @@ IOCatch[String](r => IO.uncancelable(_ => r.raise("error")))
 ```
 
 ### Other ways of constructing Catch
-1. Catch can occur an instance of `Handle[F, Vault]` (or `EitherT[F, Vault, A]`)
+1. Catch can occur for an instance of `Handle[F, Vault]` (or `EitherT[F, Vault, A]`)
 2. Catch can occur for an instance of `Local[F, Vault]` (or `Kleisli[F, Vault, A]`) and `Concurrent[F]` via cancellation
 
-An interesting observation is that you can in fact construct `Catch` if you have `Context` and `Concurrent`.
+An interestingly, you can in fact construct `Catch` if you have `Context` and `Concurrent`.
 ```scala
 import org.typelevel.vault._
 trait MyError
