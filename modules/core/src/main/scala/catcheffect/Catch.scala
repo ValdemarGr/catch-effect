@@ -264,7 +264,22 @@ object Catch {
                 val program: F[A] =
                   L.local(fa)(_.insert(key, (x: E) => prom.complete(x).void))(sp)
 
-                F.race(prom.get, program).flatMap(_.fold(f, F.pure(_)))
+                // Since fa self-cancels in case of a raise, we need to account for fa completing
+                // before the deferred reported done. If fa ends in canceled, check the promise for completion
+                F.raceOutcome(prom.get, program).flatMap {
+                  // Promise can never be canceled
+                  case Left(o) => o.embedError >>= f
+                  case Right(outcome) =>
+                    outcome match {
+                      case Outcome.Succeeded(get) => get
+                      case Outcome.Errored(e)     => F.raiseError(e)
+                      case Outcome.Canceled() =>
+                        prom.tryGet.flatMap {
+                          case None    => F.canceled *> F.never
+                          case Some(e) => f(e)
+                        }
+                    }
+                }
               }
           }
         }
